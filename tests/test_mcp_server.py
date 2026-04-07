@@ -1,0 +1,56 @@
+"""Tests for mh_server.py — Phase 0: verify tools and resources exist."""
+import os
+import tempfile
+import csv
+import pathlib
+
+import pytest
+
+_tmp = tempfile.mkdtemp()
+os.environ["MH_PLUGIN_DATA"] = _tmp
+os.environ.setdefault("MH_PLUGIN_ROOT", str(pathlib.Path(__file__).resolve().parents[1]))
+
+# Ensure frontier.tsv exists for import
+data_dir = pathlib.Path(_tmp)
+data_dir.mkdir(parents=True, exist_ok=True)
+frontier_path = data_dir / "frontier.tsv"
+with frontier_path.open("w", newline="", encoding="utf-8") as f:
+    writer = csv.writer(f, delimiter="\t")
+    writer.writerow([
+        "run_id", "status", "primary_score", "avg_latency_ms",
+        "avg_input_tokens", "risk", "note", "timestamp",
+    ])
+    writer.writerow([
+        "run-0001", "complete", "0.764", "8120",
+        "11382", "low", "env bootstrap", "2026-04-07T00:00:00Z",
+    ])
+
+
+class TestMCPServerStructure:
+    def test_server_imports(self):
+        """Verify the server module can be imported."""
+        try:
+            import servers.mh_server as srv
+            assert hasattr(srv, "mcp")
+        except ImportError as e:
+            if "mcp" in str(e):
+                pytest.skip("mcp package not installed (optional dependency)")
+            raise
+
+    def test_frontier_read_tool_exists(self):
+        try:
+            from servers.mh_server import frontier_read
+            assert callable(frontier_read)
+        except ImportError as e:
+            if "mcp" in str(e):
+                pytest.skip("mcp package not installed")
+            raise
+
+    def test_dashboard_resource_exists(self):
+        try:
+            from servers.mh_server import dashboard
+            assert callable(dashboard)
+        except ImportError as e:
+            if "mcp" in str(e):
+                pytest.skip("mcp package not installed")
+            raise
