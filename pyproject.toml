@@ -1,0 +1,15 @@
+[project]
+name = "meta-harness-ygn"
+version = "0.1.0"
+description = "Scientific harness optimizer for Claude Code"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = []
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.12"]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
