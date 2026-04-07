@@ -1,0 +1,63 @@
+# Changelog
+
+All notable changes to Meta-Harness-YGN are documented here.
+
+## [0.5.0] - 2026-04-07
+
+### Phase 4: Autonomous Loop
+- **BREAKING**: Restructured `/mh:evolve` from `context: fork` to inline orchestrator dispatching 4 agents sequentially (harvest, propose, evaluate, audit)
+- Enhanced harness-proposer with anti-hallucination constraints, output template, scope lock, mid-run checkpoint
+- Enhanced harness-evaluator with context-break (reads only disk artifacts, not proposer reasoning)
+- Enhanced regression-auditor with structured output format
+- Added `/mh:dashboard` skill — aggregated status view
+- Added `bin/mh-rollback` command — reverse-apply candidate patches with safety tags
+- Added 3 eval check types: `patch_not_empty`, `max_files_changed`, `files_in_scope`
+- 4-verdict system: accepted, accepted_with_warnings, rejected, partial
+
+## [0.4.0] - 2026-04-07
+
+### Phase 3: Evaluation Framework
+- Added `scripts/eval_runner.py` — deterministic grading engine with 6 check types
+- Added eval task JSON schema and example tasks (regression + capability)
+- Added harness-evaluator agent
+- Added `/mh:eval` skill — run evaluation suite
+- Added `/mh:bootstrap` skill — auto-generate eval tasks from project analysis
+- Added `eval_run` MCP tool
+
+## [0.3.0] - 2026-04-07
+
+### Phase 2: Context Engine
+- Added `scripts/context_harvester.py` — BM25 scoring, source harvesters, RRF merge
+- Tokenizer for markdown+code (camelCase/snake_case splitting)
+- 4 sources: CLAUDE.md, project memory, git history, docs
+- Added `context_harvest` MCP tool and `harness://context` resource
+- Added context-harvester agent (Haiku, read-only)
+- Integrated context injection into `/mh:evolve` skill
+
+## [0.2.0] - 2026-04-07
+
+### Phase 1: MCP Server + Core Enhancement
+- Extended frontier.tsv with 4 new columns: consistency, instruction_adherence, tool_efficiency, error_count
+- Added checkpoint persistence (write_checkpoint, detect_incomplete_runs)
+- Added MCP tools: frontier_record, trace_search, candidate_diff, plugin_scan
+- Added MCP resources: harness://traces/{run_id}, harness://regressions
+- Added hooks: Stop quality gate (Haiku prompt), InstructionsLoaded audit, SubagentStop capture
+
+## [0.1.0] - 2026-04-07
+
+### Phase 0: Walking Skeleton
+- Renamed plugin from `meta-harness-lab` to `mh` (skills: `/mh:evolve`, `/mh:frontier`, `/mh:regressions`)
+- Added FastMCP server with `frontier_read` tool and `harness://dashboard` resource
+- Added Meta-Harness proof-first output style
+- Added Node.js SessionStart hook with `additionalContext` injection
+- Added PostCompact hook for context recovery
+- Added `compact-summary` subcommand to meta_harness.py
+- Added `pyproject.toml` with zero-dep core
+
+## [0.0.1] - 2026-04-07
+
+### Initial Blueprint
+- Claude Code plugin blueprint with harness-proposer and regression-auditor agents
+- Skills: harness-evolve, harness-frontier, harness-regressions
+- Core Python module with Pareto frontier management
+- Lifecycle hooks: SessionStart, PostToolUse, Stop
