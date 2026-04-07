@@ -1,5 +1,5 @@
 ---
-name: harness-frontier
+name: frontier
 description: Summarize the current Meta-Harness-style frontier of harness candidates, including quality, cost, latency, and safety notes.
 context: fork
 agent: regression-auditor

@@ -1,5 +1,5 @@
 ---
-name: harness-evolve
+name: evolve
 description: Evolve repo-local Claude Code harness assets using full history, traces, and Pareto metrics. Use for context engineering, retrieval, validation, or control-flow improvements.
 context: fork
 agent: harness-proposer

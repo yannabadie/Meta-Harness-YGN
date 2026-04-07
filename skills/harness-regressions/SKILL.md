@@ -1,5 +1,5 @@
 ---
-name: harness-regressions
+name: regressions
 description: Audit recent regressions in the harness search and identify likely confounds, brittle edits, and safer next-step ideas.
 context: fork
 agent: regression-auditor
