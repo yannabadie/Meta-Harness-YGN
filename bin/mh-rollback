@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Meta-Harness rollback — reverse-apply a candidate patch
+# Usage: mh-rollback <run_id>
+
+PLUGIN_DATA="${CLAUDE_PLUGIN_DATA:-/tmp/meta-harness}"
+RUN_ID="${1:-}"
+
+if [ -z "$RUN_ID" ]; then
+  echo "Usage: mh-rollback <run_id>"
+  echo "Reverse-applies the candidate patch and creates a safety tag."
+  exit 1
+fi
+
+RUN_DIR="${PLUGIN_DATA}/runs/${RUN_ID}"
+PATCH="${RUN_DIR}/candidate.patch"
+
+if [ ! -f "$PATCH" ]; then
+  echo "Error: No candidate.patch found for ${RUN_ID}"
+  echo "Expected: ${PATCH}"
+  exit 1
+fi
+
+if [ ! -s "$PATCH" ]; then
+  echo "Error: candidate.patch is empty for ${RUN_ID}"
+  exit 1
+fi
+
+# Create safety tag before rollback
+TAG_NAME="harness-pre-rollback-${RUN_ID}"
+if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+  echo "Warning: tag ${TAG_NAME} already exists, skipping tag creation"
+else
+  git tag "$TAG_NAME" -m "Safety tag before rolling back ${RUN_ID}"
+  echo "Created safety tag: ${TAG_NAME}"
+fi
+
+# Reverse-apply the patch
+if git apply --check -R "$PATCH" 2>/dev/null; then
+  git apply -R "$PATCH"
+  echo "Rolled back ${RUN_ID} successfully"
+  echo "To undo this rollback: git apply ${PATCH}"
+else
+  echo "Error: Patch cannot be reverse-applied cleanly"
+  echo "The working tree may have changed since the patch was created."
+  echo "Manual intervention required."
+  exit 1
+fi
