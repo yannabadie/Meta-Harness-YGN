@@ -472,6 +472,8 @@ def main() -> int:
     args = parser.parse_args()
 
     result = harvest(args.project, args.objective, budget=args.budget)
+    import sys
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     print(result)
     return 0
 
