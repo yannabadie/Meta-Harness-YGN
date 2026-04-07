@@ -31,6 +31,11 @@ mh-frontier --markdown
 mh-regressions --markdown
 ```
 
+## Dynamic context: project context
+```!
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context_harvester.py --project . --objective "$ARGUMENTS" --budget 1500
+```
+
 ## Required workflow
 1. Create or reserve a candidate id using `mh-next-run`.
 2. Inspect prior candidate files, frontier notes, and regression summaries before editing.
