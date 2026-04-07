@@ -1,15 +1,20 @@
 {
-  "name": "meta-harness-lab",
+  "name": "mh",
   "version": "0.1.0",
-  "description": "Full-history harness evolution for Claude Code, inspired by Meta-Harness.",
+  "description": "Scientific harness optimizer for Claude Code. Proposes controlled candidates, evaluates with evidence, tracks a Pareto frontier.",
   "author": {
-    "name": "OpenAI"
+    "name": "Yann Abadie"
   },
+  "homepage": "https://github.com/yannabadie/Meta-Harness-YGN",
+  "repository": "https://github.com/yannabadie/Meta-Harness-YGN",
+  "license": "MIT",
   "keywords": [
     "claude-code",
     "plugin",
-    "evaluation",
     "harness",
-    "optimization"
-  ]
+    "optimization",
+    "evaluation",
+    "pareto"
+  ],
+  "outputStyles": "./output-styles/"
 }
