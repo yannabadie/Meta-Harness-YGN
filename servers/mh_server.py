@@ -124,7 +124,7 @@ async def frontier_record(
     """Record metrics for a harness candidate run into frontier.tsv."""
     import datetime as dt
     rows = _read_frontier()
-    timestamp = dt.datetime.now(dt.timezone.utc).isoformat() + "Z"
+    timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     new_row = {
         "run_id": run_id, "status": status,
         "primary_score": primary_score, "avg_latency_ms": avg_latency_ms,
@@ -337,12 +337,12 @@ async def eval_run(eval_dir: str = "", cwd: str = "") -> str:
     result = run_all_evals(_eval_dir, _cwd)
 
     lines = ["## Eval Results", ""]
-    lines.append(f"**Tasks:** {result['tasks_run']} | **Checks:** {result['passed_checks']}/{result['total_checks']} | **Score:** {result['average_score']:.1%}")
+    lines.append(f"**Tasks:** {result['total_tasks']} | **Passed:** {result['passed_tasks']}/{result['total_tasks']} | **Score:** {result['aggregate_score']:.1%}")
     lines.append("")
-    for r in result["results"]:
+    for r in result["tasks"]:
         status = "PASS" if r["deterministic_score"] == 1.0 else "FAIL"
-        lines.append(f"### [{status}] {r['task_name']} ({r['deterministic_score']:.0%})")
-        for check in r["results"]:
+        lines.append(f"### [{status}] {r['name']} ({r['deterministic_score']:.0%})")
+        for check in r["check_results"]:
             mark = "✓" if check["passed"] else "✗"
             lines.append(f"- {mark} {check['type']}: {check['evidence']}")
     return "\n".join(lines)

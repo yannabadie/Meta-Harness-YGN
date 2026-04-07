@@ -5,7 +5,7 @@
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin%20%2F%2Fmh-5A67D8?logo=anthropic&logoColor=white)](https://claude.ai/code)
 [![License MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/yannabadie/Meta-Harness-YGN?style=flat)](https://github.com/yannabadie/Meta-Harness-YGN/stargazers)
-[![Version](https://img.shields.io/badge/version-v0.5.0-blue)](https://github.com/yannabadie/Meta-Harness-YGN/releases)
+[![Version](https://img.shields.io/badge/version-v1.0.0-blue)](https://github.com/yannabadie/Meta-Harness-YGN/releases)
 
 Meta-Harness-YGN is a Claude Code plugin (namespace `/mh`) that brings scientific rigor to harness engineering: every proposed change produces a falsifiable hypothesis, a reproducible evaluation against a 9-check suite, and a recorded entry on a multi-objective Pareto frontier — so you always know whether your harness actually improved, regressed, or just changed.
 
@@ -195,7 +195,7 @@ Seven lifecycle hooks enforce discipline without requiring manual steps:
 
 ## Roadmap
 
-### Done (v0.5.0)
+### Done (v1.0.0)
 - 5-phase evolution pipeline with proposer / evaluator context break
 - Multi-objective Pareto frontier (score, latency, token cost, risk)
 - 9-check deterministic + LLM-judge eval suite (55 tests)
