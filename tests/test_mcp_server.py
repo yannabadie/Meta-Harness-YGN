@@ -106,3 +106,21 @@ class TestNewResources:
         except ImportError as e:
             if "mcp" in str(e): pytest.skip("mcp not installed")
             raise
+
+
+class TestContextEngine:
+    def test_context_harvest_tool_exists(self):
+        try:
+            from servers.mh_server import context_harvest
+            assert callable(context_harvest)
+        except ImportError as e:
+            if "mcp" in str(e): pytest.skip("mcp not installed")
+            raise
+
+    def test_context_resource_exists(self):
+        try:
+            from servers.mh_server import context_resource
+            assert callable(context_resource)
+        except ImportError as e:
+            if "mcp" in str(e): pytest.skip("mcp not installed")
+            raise

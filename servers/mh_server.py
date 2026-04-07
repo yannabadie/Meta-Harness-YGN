@@ -296,5 +296,30 @@ async def regressions_resource() -> str:
     return "\n".join(lines)
 
 
+@mcp.tool()
+async def context_harvest(objective: str = "general harness optimization", budget: int = 2000) -> str:
+    """Harvest project context — extracts from CLAUDE.md, memory, git, docs.
+
+    Returns structured markdown scored by relevance to the objective, within token budget.
+
+    Args:
+        objective: What you're trying to optimize (used for BM25 relevance scoring).
+        budget: Maximum estimated tokens for the output.
+    """
+    import sys as _sys
+    _sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
+    from context_harvester import harvest
+    return harvest(str(PLUGIN_ROOT), objective, budget)
+
+
+@mcp.resource("harness://context")
+async def context_resource() -> str:
+    """Aggregated project context — CLAUDE.md, memory, git patterns, docs."""
+    import sys as _sys
+    _sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
+    from context_harvester import harvest
+    return harvest(str(PLUGIN_ROOT), "general harness optimization", 2000)
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")
