@@ -139,6 +139,56 @@ def _check_command_output(check: dict[str, Any], cwd: str) -> dict[str, Any]:
     return {"type": "command_output", "passed": passed, "weight": check.get("weight", 1.0), "evidence": evidence}
 
 
+def _check_patch_not_empty(check: dict[str, Any], cwd: str) -> dict[str, Any]:
+    path = _resolve_path(check["path"], cwd)
+    if not path.exists():
+        return {"type": "patch_not_empty", "passed": False, "weight": check.get("weight", 1.0), "evidence": "patch file missing"}
+    content = path.read_text(encoding="utf-8").strip()
+    passed = len(content) > 10  # More than just whitespace
+    evidence = f"patch {'has content' if passed else 'is empty or trivial'} ({len(content)} chars)"
+    return {"type": "patch_not_empty", "passed": passed, "weight": check.get("weight", 1.0), "evidence": evidence}
+
+
+def _check_max_files_changed(check: dict[str, Any], cwd: str) -> dict[str, Any]:
+    path = _resolve_path(check["path"], cwd)
+    max_files = int(check.get("max", 3))
+    if not path.exists():
+        return {"type": "max_files_changed", "passed": False, "weight": check.get("weight", 1.0), "evidence": "patch file missing"}
+    content = path.read_text(encoding="utf-8")
+    # Count files: lines starting with "+++ b/"
+    files: set[str] = set()
+    for line in content.split("\n"):
+        if line.startswith("+++ b/"):
+            files.add(line[6:])
+    passed = len(files) <= max_files
+    evidence = f"{len(files)} files changed (max {max_files})"
+    return {"type": "max_files_changed", "passed": passed, "weight": check.get("weight", 1.0), "evidence": evidence}
+
+
+def _check_files_in_scope(check: dict[str, Any], cwd: str) -> dict[str, Any]:
+    path = _resolve_path(check["path"], cwd)
+    HARNESS_PATTERNS = [
+        "CLAUDE.md", ".claude/", "prompts/", ".meta-harness/",
+        "skills/", "agents/", "rules/",
+    ]
+    if not path.exists():
+        return {"type": "files_in_scope", "passed": False, "weight": check.get("weight", 1.0), "evidence": "patch file missing"}
+    content = path.read_text(encoding="utf-8")
+    out_of_scope: list[str] = []
+    for line in content.split("\n"):
+        if line.startswith("+++ b/"):
+            fpath = line[6:]
+            in_scope = any(fpath.startswith(p) or fpath == p.rstrip("/") for p in HARNESS_PATTERNS)
+            if not in_scope:
+                out_of_scope.append(fpath)
+    passed = len(out_of_scope) == 0
+    if out_of_scope:
+        evidence = f"out-of-scope files: {', '.join(out_of_scope)}"
+    else:
+        evidence = "all files within harness scope"
+    return {"type": "files_in_scope", "passed": passed, "weight": check.get("weight", 1.0), "evidence": evidence}
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
@@ -150,6 +200,9 @@ _CHECK_HANDLERS: dict[str, Any] = {
     "file_not_contains": _check_file_not_contains,
     "exit_code": _check_exit_code,
     "command_output": _check_command_output,
+    "patch_not_empty": _check_patch_not_empty,
+    "max_files_changed": _check_max_files_changed,
+    "files_in_scope": _check_files_in_scope,
 }
 
 

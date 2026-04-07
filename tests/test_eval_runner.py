@@ -100,3 +100,56 @@ class TestRunEvalTask:
         assert result["deterministic_score"] == 1.0
         assert result["total_checks"] == 2
         assert result["passed_checks"] == 2
+
+
+class TestNoveltyAndScopeChecks:
+    def test_patch_not_empty_pass(self, tmp_path):
+        from scripts.eval_runner import run_check
+        f = tmp_path / "candidate.patch"
+        f.write_text("--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -1 +1,2 @@\n+new line\n", encoding="utf-8")
+        result = run_check({"type": "patch_not_empty", "path": str(f), "weight": 2.0}, str(tmp_path))
+        assert result["passed"] is True
+
+    def test_patch_not_empty_fail(self, tmp_path):
+        from scripts.eval_runner import run_check
+        f = tmp_path / "candidate.patch"
+        f.write_text("", encoding="utf-8")
+        result = run_check({"type": "patch_not_empty", "path": str(f), "weight": 2.0}, str(tmp_path))
+        assert result["passed"] is False
+
+    def test_patch_not_empty_missing(self, tmp_path):
+        from scripts.eval_runner import run_check
+        result = run_check({"type": "patch_not_empty", "path": str(tmp_path / "nope.patch"), "weight": 2.0}, str(tmp_path))
+        assert result["passed"] is False
+
+    def test_max_files_changed_pass(self, tmp_path):
+        from scripts.eval_runner import run_check
+        f = tmp_path / "candidate.patch"
+        f.write_text("--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -1 +1 @@\n-old\n+new\n", encoding="utf-8")
+        result = run_check({"type": "max_files_changed", "path": str(f), "max": 3, "weight": 1.0}, str(tmp_path))
+        assert result["passed"] is True
+
+    def test_max_files_changed_fail(self, tmp_path):
+        from scripts.eval_runner import run_check
+        f = tmp_path / "candidate.patch"
+        # Patch with 4 files
+        lines = []
+        for i in range(4):
+            lines.append(f"--- a/file{i}.md\n+++ b/file{i}.md\n@@ -1 +1 @@\n-old\n+new\n")
+        f.write_text("\n".join(lines), encoding="utf-8")
+        result = run_check({"type": "max_files_changed", "path": str(f), "max": 3, "weight": 1.0}, str(tmp_path))
+        assert result["passed"] is False
+
+    def test_files_in_scope_pass(self, tmp_path):
+        from scripts.eval_runner import run_check
+        f = tmp_path / "candidate.patch"
+        f.write_text("--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -1 +1 @@\n-old\n+new\n--- a/.claude/rules/test.md\n+++ b/.claude/rules/test.md\n@@ -1 +1 @@\n-old\n+new\n", encoding="utf-8")
+        result = run_check({"type": "files_in_scope", "path": str(f), "weight": 3.0}, str(tmp_path))
+        assert result["passed"] is True
+
+    def test_files_in_scope_fail(self, tmp_path):
+        from scripts.eval_runner import run_check
+        f = tmp_path / "candidate.patch"
+        f.write_text("--- a/src/app.py\n+++ b/src/app.py\n@@ -1 +1 @@\n-old\n+new\n", encoding="utf-8")
+        result = run_check({"type": "files_in_scope", "path": str(f), "weight": 3.0}, str(tmp_path))
+        assert result["passed"] is False
