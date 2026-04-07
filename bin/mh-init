@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/meta_harness.py" init

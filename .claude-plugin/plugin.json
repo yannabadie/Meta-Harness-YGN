@@ -1,0 +1,15 @@
+{
+  "name": "meta-harness-lab",
+  "version": "0.1.0",
+  "description": "Full-history harness evolution for Claude Code, inspired by Meta-Harness.",
+  "author": {
+    "name": "OpenAI"
+  },
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "evaluation",
+    "harness",
+    "optimization"
+  ]
+}

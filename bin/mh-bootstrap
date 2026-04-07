@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+print_section() {
+  printf '
+## %s
+' "$1"
+}
+
+safe_run() {
+  local label="$1"
+  shift
+  printf '- %s: ' "$label"
+  if "$@" >/tmp/mh-bootstrap.$$ 2>/dev/null; then
+    head -n 20 /tmp/mh-bootstrap.$$ | tr '
+' ' ' | sed 's/[[:space:]]\+/ /g'
+    printf '
+'
+  else
+    printf 'unavailable
+'
+  fi
+  rm -f /tmp/mh-bootstrap.$$
+}
+
+printf '# Environment snapshot
+'
+printf '- cwd: %s
+' "$(pwd)"
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  printf '- git branch: %s
+' "$(git branch --show-current 2>/dev/null || true)"
+  printf '- git status: %s
+' "$(git status --short 2>/dev/null | head -n 10 | tr '
+' '; ' || true)"
+else
+  printf '- git branch: not a git repo
+'
+fi
+
+print_section 'Top-level files'
+find . -maxdepth 2 \( -path './.git' -o -path './node_modules' -o -path './.venv' \) -prune -o -maxdepth 2 -type f | sed 's#^./##' | sort | head -n 80
+
+print_section 'Claude surfaces'
+for path in CLAUDE.md .claude .meta-harness prompts; do
+  if [ -e "$path" ]; then
+    printf '- found: %s
+' "$path"
+    if [ -d "$path" ]; then
+      find "$path" -maxdepth 2 -type f | sort | head -n 50
+    fi
+  fi
+done
+
+print_section 'Tooling'
+safe_run 'python3' python3 --version
+safe_run 'node' node --version
+safe_run 'npm' npm --version
+safe_run 'uv' uv --version
+safe_run 'pytest' pytest --version
+safe_run 'ruff' ruff --version
+safe_run 'mypy' mypy --version
+safe_run 'go' go version
+safe_run 'rustc' rustc --version
+safe_run 'java' java -version
+
+print_section 'Plugin ledger'
+if [ -n "${CLAUDE_PLUGIN_DATA:-}" ] && [ -f "${CLAUDE_PLUGIN_DATA}/frontier.tsv" ]; then
+  tail -n +1 "${CLAUDE_PLUGIN_DATA}/frontier.tsv" | head -n 20
+else
+  echo 'No frontier.tsv yet.'
+fi
