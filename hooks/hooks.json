@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/mh-init"
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs"
           }
         ]
       }
@@ -17,6 +17,16 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/bin/mh-log-write"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/meta_harness.py compact-summary"
           }
         ]
       }
