@@ -16,11 +16,16 @@ from scripts.meta_harness import main, read_frontier, FRONTIER, TSV_HEADER, ensu
 
 @pytest.fixture(autouse=True)
 def clean_state():
-    """Reset frontier.tsv before each test."""
+    """Reset frontier.tsv and RUNS_DIR before each test."""
+    import shutil
+    from scripts.meta_harness import RUNS_DIR
     ensure_dirs()
     with FRONTIER.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f, delimiter="\t")
         writer.writerow(TSV_HEADER)
+    if RUNS_DIR.exists():
+        shutil.rmtree(RUNS_DIR)
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
     yield
 
 
@@ -74,6 +79,43 @@ class TestExtendedFrontier:
         assert row["instruction_adherence"] == "4.2"
         assert row["tool_efficiency"] == "12"
         assert row["error_count"] == "2"
+
+
+class TestCheckpoint:
+    def test_write_checkpoint(self):
+        from scripts.meta_harness import write_checkpoint, RUNS_DIR
+        ensure_dirs()
+        run_dir = RUNS_DIR / "run-0050"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        write_checkpoint(run_dir, "PROPOSE", 5, "test objective")
+        cp_file = run_dir / "checkpoint.json"
+        assert cp_file.exists()
+        data = json.loads(cp_file.read_text(encoding="utf-8"))
+        assert data["phase"] == "PROPOSE"
+        assert data["turn"] == 5
+        assert data["objective"] == "test objective"
+
+    def test_detect_incomplete_run(self):
+        from scripts.meta_harness import write_checkpoint, detect_incomplete_runs, RUNS_DIR
+        ensure_dirs()
+        run_dir = RUNS_DIR / "run-0051"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        write_checkpoint(run_dir, "EVALUATE", 12, "improve validation")
+        result = detect_incomplete_runs()
+        assert result is not None
+        assert result["run_id"] == "run-0051"
+        assert result["phase"] == "EVALUATE"
+
+    def test_completed_run_not_detected(self):
+        from scripts.meta_harness import write_checkpoint, detect_incomplete_runs, RUNS_DIR
+        ensure_dirs()
+        run_dir = RUNS_DIR / "run-0052"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        write_checkpoint(run_dir, "COMPLETED", 20, "done")
+        (run_dir / "metrics.json").write_text('{"status": "complete"}', encoding="utf-8")
+        result = detect_incomplete_runs()
+        if result:
+            assert result["run_id"] != "run-0052"
 
 
 class TestCompactSummary:

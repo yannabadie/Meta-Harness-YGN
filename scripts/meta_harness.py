@@ -105,6 +105,35 @@ def next_run_id() -> str:
     return f"run-{n:04d}"
 
 
+def write_checkpoint(run_dir: pathlib.Path, phase: str, turn: int, objective: str) -> None:
+    """Write a checkpoint file for crash recovery."""
+    data = {
+        "run_id": run_dir.name,
+        "phase": phase,
+        "turn": turn,
+        "objective": objective,
+        "last_updated": dt.datetime.now(dt.timezone.utc).isoformat() + "Z",
+    }
+    (run_dir / "checkpoint.json").write_text(
+        json.dumps(data, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def detect_incomplete_runs() -> dict | None:
+    """Find a run with checkpoint but no metrics (incomplete)."""
+    ensure_dirs()
+    for run_dir in sorted(RUNS_DIR.iterdir()):
+        if not run_dir.is_dir():
+            continue
+        checkpoint = run_dir / "checkpoint.json"
+        metrics = run_dir / "metrics.json"
+        if checkpoint.exists() and not metrics.exists():
+            data = json.loads(checkpoint.read_text(encoding="utf-8"))
+            if data.get("phase") != "COMPLETED":
+                return data
+    return None
+
+
 def cmd_next_run(args: argparse.Namespace) -> int:
     ensure_dirs()
     run_id = args.run_id or next_run_id()
