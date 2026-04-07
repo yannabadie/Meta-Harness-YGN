@@ -44,6 +44,38 @@ def _add_row(run_id, score, latency, tokens, status="complete"):
             writer.writerow({k: row.get(k, "") for k in TSV_HEADER})
 
 
+class TestExtendedFrontier:
+    def test_new_columns_in_header(self):
+        from scripts.meta_harness import TSV_HEADER
+        assert "consistency" in TSV_HEADER
+        assert "instruction_adherence" in TSV_HEADER
+        assert "tool_efficiency" in TSV_HEADER
+        assert "error_count" in TSV_HEADER
+
+    def test_backward_compat_old_rows(self):
+        _add_row("run-0010", 0.75, 8000, 11000)
+        rows = read_frontier()
+        row = rows[0]
+        assert row.get("consistency", "") == ""
+
+    def test_record_metrics_with_new_columns(self, capsys, monkeypatch):
+        monkeypatch.setattr("sys.argv", [
+            "meta_harness.py", "record-metrics",
+            "run-0020", "0.81", "7500", "10000", "low", "test note",
+            "--consistency", "0.58",
+            "--instruction-adherence", "4.2",
+            "--tool-efficiency", "12",
+            "--error-count", "2",
+        ])
+        main()
+        rows = read_frontier()
+        row = [r for r in rows if r["run_id"] == "run-0020"][0]
+        assert row["consistency"] == "0.58"
+        assert row["instruction_adherence"] == "4.2"
+        assert row["tool_efficiency"] == "12"
+        assert row["error_count"] == "2"
+
+
 class TestCompactSummary:
     def test_empty_frontier(self, capsys, monkeypatch):
         monkeypatch.setattr("sys.argv", ["meta_harness.py", "compact-summary"])

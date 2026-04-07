@@ -18,14 +18,10 @@ RUNS_DIR = PLUGIN_DATA / "runs"
 SESSIONS_DIR = PLUGIN_DATA / "sessions"
 
 TSV_HEADER = [
-    "run_id",
-    "status",
-    "primary_score",
-    "avg_latency_ms",
-    "avg_input_tokens",
-    "risk",
-    "note",
-    "timestamp",
+    "run_id", "status", "primary_score", "avg_latency_ms",
+    "avg_input_tokens", "risk",
+    "consistency", "instruction_adherence", "tool_efficiency", "error_count",
+    "note", "timestamp",
 ]
 
 
@@ -200,6 +196,10 @@ def cmd_record_metrics(args: argparse.Namespace) -> int:
                 "avg_latency_ms": args.avg_latency_ms,
                 "avg_input_tokens": args.avg_input_tokens,
                 "risk": args.risk,
+                "consistency": args.consistency,
+                "instruction_adherence": args.instruction_adherence,
+                "tool_efficiency": args.tool_efficiency,
+                "error_count": args.error_count,
                 "note": args.note,
                 "timestamp": timestamp,
             })
@@ -213,6 +213,10 @@ def cmd_record_metrics(args: argparse.Namespace) -> int:
             "avg_latency_ms": args.avg_latency_ms,
             "avg_input_tokens": args.avg_input_tokens,
             "risk": args.risk,
+            "consistency": args.consistency,
+            "instruction_adherence": args.instruction_adherence,
+            "tool_efficiency": args.tool_efficiency,
+            "error_count": args.error_count,
             "note": args.note,
             "timestamp": timestamp,
         })
@@ -226,6 +230,10 @@ def cmd_record_metrics(args: argparse.Namespace) -> int:
         "avg_latency_ms": args.avg_latency_ms,
         "avg_input_tokens": args.avg_input_tokens,
         "risk": args.risk,
+        "consistency": args.consistency,
+        "instruction_adherence": args.instruction_adherence,
+        "tool_efficiency": args.tool_efficiency,
+        "error_count": args.error_count,
         "note": args.note,
         "timestamp": timestamp,
     }, indent=2) + "\n", encoding="utf-8")
@@ -365,6 +373,10 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("risk")
     s.add_argument("note")
     s.add_argument("--status", default="complete")
+    s.add_argument("--consistency", default="")
+    s.add_argument("--instruction-adherence", default="")
+    s.add_argument("--tool-efficiency", default="")
+    s.add_argument("--error-count", default="")
     s.set_defaults(func=cmd_record_metrics)
 
     s = sub.add_parser("regressions")
