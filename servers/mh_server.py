@@ -252,5 +252,49 @@ async def dashboard() -> str:
     return "\n".join(lines)
 
 
+@mcp.resource("harness://traces/{run_id}")
+async def traces_for_run(run_id: str) -> str:
+    """Execution traces for a specific run."""
+    run_dir = RUNS_DIR / run_id
+    if not run_dir.exists():
+        return f"Run {run_id} not found."
+    parts = [f"# Traces: {run_id}"]
+    for name in ["hypothesis.md", "safety-note.md", "candidate.patch",
+                  "validation.txt", "metrics.json", "notes.md", "analysis.md",
+                  "checkpoint.json"]:
+        fpath = run_dir / name
+        if fpath.exists():
+            content = fpath.read_text(encoding="utf-8").strip()
+            if content:
+                parts.append(f"\n## {name}\n```\n{content}\n```")
+    return "\n".join(parts) if len(parts) > 1 else f"No artifacts for {run_id}."
+
+
+@mcp.resource("harness://regressions")
+async def regressions_resource() -> str:
+    """Regression analysis — runs where score dropped below previous best."""
+    rows = _read_frontier()
+    completed = [r for r in rows if r.get("status") == "complete"]
+    completed.sort(key=lambda r: r.get("timestamp", ""))
+    regression_runs = []
+    best_so_far = -1e18
+    for row in completed:
+        score = _as_float(row.get("primary_score", "nan"))
+        if score != score:
+            continue
+        if score < best_so_far:
+            regression_runs.append(row)
+        best_so_far = max(best_so_far, score)
+    regression_runs = list(reversed(regression_runs))[:10]
+    cols = ["run_id", "primary_score", "avg_latency_ms", "avg_input_tokens", "risk", "note"]
+    lines = ["# Regression Analysis", ""]
+    if not regression_runs:
+        lines.append("No regressions detected.")
+    else:
+        lines.append(f"**{len(regression_runs)} regressions found**")
+        lines += ["", _md_table(regression_runs, cols)]
+    return "\n".join(lines)
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

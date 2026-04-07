@@ -88,3 +88,21 @@ class TestNewTools:
         except ImportError as e:
             if "mcp" in str(e): pytest.skip("mcp not installed")
             raise
+
+
+class TestNewResources:
+    def test_traces_resource_exists(self):
+        try:
+            from servers.mh_server import traces_for_run
+            assert callable(traces_for_run)
+        except ImportError as e:
+            if "mcp" in str(e): pytest.skip("mcp not installed")
+            raise
+
+    def test_regressions_resource_exists(self):
+        try:
+            from servers.mh_server import regressions_resource
+            assert callable(regressions_resource)
+        except ImportError as e:
+            if "mcp" in str(e): pytest.skip("mcp not installed")
+            raise
