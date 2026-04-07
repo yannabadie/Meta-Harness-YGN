@@ -321,5 +321,32 @@ async def context_resource() -> str:
     return harvest(str(PLUGIN_ROOT), "general harness optimization", 2000)
 
 
+@mcp.tool()
+async def eval_run(eval_dir: str = "", cwd: str = "") -> str:
+    """Run all eval tasks and return results with scores.
+
+    Args:
+        eval_dir: Path to eval-tasks directory. Defaults to plugin's eval-tasks/.
+        cwd: Working directory for running checks. Defaults to plugin root.
+    """
+    import sys as _sys
+    _sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
+    from eval_runner import run_all_evals
+    _eval_dir = eval_dir or str(PLUGIN_ROOT / "eval-tasks")
+    _cwd = cwd or str(PLUGIN_ROOT)
+    result = run_all_evals(_eval_dir, _cwd)
+
+    lines = ["## Eval Results", ""]
+    lines.append(f"**Tasks:** {result['tasks_run']} | **Checks:** {result['passed_checks']}/{result['total_checks']} | **Score:** {result['average_score']:.1%}")
+    lines.append("")
+    for r in result["results"]:
+        status = "PASS" if r["deterministic_score"] == 1.0 else "FAIL"
+        lines.append(f"### [{status}] {r['task_name']} ({r['deterministic_score']:.0%})")
+        for check in r["results"]:
+            mark = "✓" if check["passed"] else "✗"
+            lines.append(f"- {mark} {check['type']}: {check['evidence']}")
+    return "\n".join(lines)
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

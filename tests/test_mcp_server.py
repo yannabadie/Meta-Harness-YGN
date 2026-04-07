@@ -124,3 +124,13 @@ class TestContextEngine:
         except ImportError as e:
             if "mcp" in str(e): pytest.skip("mcp not installed")
             raise
+
+
+class TestEvalIntegration:
+    def test_eval_run_tool_exists(self):
+        try:
+            from servers.mh_server import eval_run
+            assert callable(eval_run)
+        except ImportError as e:
+            if "mcp" in str(e): pytest.skip("mcp not installed")
+            raise
