@@ -54,3 +54,37 @@ class TestMCPServerStructure:
             if "mcp" in str(e):
                 pytest.skip("mcp package not installed")
             raise
+
+
+class TestNewTools:
+    def test_frontier_record_exists(self):
+        try:
+            from servers.mh_server import frontier_record
+            assert callable(frontier_record)
+        except ImportError as e:
+            if "mcp" in str(e): pytest.skip("mcp not installed")
+            raise
+
+    def test_trace_search_exists(self):
+        try:
+            from servers.mh_server import trace_search
+            assert callable(trace_search)
+        except ImportError as e:
+            if "mcp" in str(e): pytest.skip("mcp not installed")
+            raise
+
+    def test_candidate_diff_exists(self):
+        try:
+            from servers.mh_server import candidate_diff
+            assert callable(candidate_diff)
+        except ImportError as e:
+            if "mcp" in str(e): pytest.skip("mcp not installed")
+            raise
+
+    def test_plugin_scan_exists(self):
+        try:
+            from servers.mh_server import plugin_scan
+            assert callable(plugin_scan)
+        except ImportError as e:
+            if "mcp" in str(e): pytest.skip("mcp not installed")
+            raise

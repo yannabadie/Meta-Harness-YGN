@@ -25,7 +25,9 @@ RUNS_DIR = PLUGIN_DATA / "runs"
 
 TSV_HEADER = [
     "run_id", "status", "primary_score", "avg_latency_ms",
-    "avg_input_tokens", "risk", "note", "timestamp",
+    "avg_input_tokens", "risk",
+    "consistency", "instruction_adherence", "tool_efficiency", "error_count",
+    "note", "timestamp",
 ]
 
 mcp = FastMCP(
@@ -109,6 +111,125 @@ async def frontier_read(format: str = "markdown", limit: int = 10) -> str:
     out += ["", "## Recent Runs", "", _md_table(recent, cols, limit)]
     out.append(f"\nNon-dominated: {len(fr)} | Total runs: {len(rows)}")
     return "\n".join(out)
+
+
+@mcp.tool()
+async def frontier_record(
+    run_id: str, primary_score: str, avg_latency_ms: str,
+    avg_input_tokens: str, risk: str = "low", note: str = "",
+    status: str = "complete", consistency: str = "",
+    instruction_adherence: str = "", tool_efficiency: str = "",
+    error_count: str = "",
+) -> str:
+    """Record metrics for a harness candidate run into frontier.tsv."""
+    import datetime as dt
+    rows = _read_frontier()
+    timestamp = dt.datetime.now(dt.timezone.utc).isoformat() + "Z"
+    new_row = {
+        "run_id": run_id, "status": status,
+        "primary_score": primary_score, "avg_latency_ms": avg_latency_ms,
+        "avg_input_tokens": avg_input_tokens, "risk": risk,
+        "consistency": consistency, "instruction_adherence": instruction_adherence,
+        "tool_efficiency": tool_efficiency, "error_count": error_count,
+        "note": note, "timestamp": timestamp,
+    }
+    updated = False
+    for row in rows:
+        if row.get("run_id") == run_id:
+            row.update(new_row)
+            updated = True
+            break
+    if not updated:
+        rows.append(new_row)
+    PLUGIN_DATA.mkdir(parents=True, exist_ok=True)
+    with FRONTIER.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=TSV_HEADER, delimiter="\t")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({k: row.get(k, "") for k in TSV_HEADER})
+    return f"Recorded metrics for {run_id}"
+
+
+@mcp.tool()
+async def trace_search(run_id: str = "", query: str = "") -> str:
+    """Search execution traces from session logs and run directories."""
+    results = []
+    sessions_dir = PLUGIN_DATA / "sessions"
+    if sessions_dir.exists():
+        for log_file in sorted(sessions_dir.glob("*.log"), reverse=True)[:10]:
+            content = log_file.read_text(encoding="utf-8")
+            if query and query.lower() not in content.lower():
+                continue
+            results.append(f"### {log_file.name}\n```\n{content[:2000]}\n```")
+    if run_id:
+        run_dir = RUNS_DIR / run_id
+        if run_dir.exists():
+            for f in run_dir.iterdir():
+                if f.suffix in (".md", ".txt", ".json", ".patch"):
+                    content = f.read_text(encoding="utf-8")
+                    if query and query.lower() not in content.lower():
+                        continue
+                    results.append(f"### {run_id}/{f.name}\n```\n{content[:2000]}\n```")
+    return "\n\n".join(results[:20]) if results else "No traces found."
+
+
+@mcp.tool()
+async def candidate_diff(run_id: str) -> str:
+    """Get the patch diff and artifacts for a candidate run."""
+    run_dir = RUNS_DIR / run_id
+    if not run_dir.exists():
+        return f"Run directory not found: {run_id}"
+    parts = [f"# Candidate {run_id}"]
+    for name in ["hypothesis.md", "safety-note.md", "candidate.patch", "validation.txt"]:
+        fpath = run_dir / name
+        if fpath.exists():
+            content = fpath.read_text(encoding="utf-8").strip()
+            if content:
+                parts.append(f"\n## {name}\n```\n{content}\n```")
+    return "\n".join(parts) if len(parts) > 1 else f"No artifacts found for {run_id}"
+
+
+@mcp.tool()
+async def plugin_scan() -> str:
+    """Scan installed Claude Code plugins and report their harness surfaces."""
+    import json as _json
+    plugins_dir = pathlib.Path.home() / ".claude" / "plugins"
+    registry_path = plugins_dir / "installed_plugins.json"
+    if not registry_path.exists():
+        return "No installed_plugins.json found."
+    try:
+        registry = _json.loads(registry_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        return f"Error reading plugin registry: {e}"
+    results = []
+    for key, installs in registry.get("plugins", {}).items():
+        plugin_name = key.split("@")[0]
+        if not installs:
+            continue
+        install = installs[0]
+        root = pathlib.Path(install.get("installPath", ""))
+        if not root.exists():
+            continue
+        manifest_path = root / ".claude-plugin" / "plugin.json"
+        desc = ""
+        if manifest_path.exists():
+            try:
+                manifest = _json.loads(manifest_path.read_text(encoding="utf-8"))
+                desc = manifest.get("description", "")
+            except Exception:
+                pass
+        skills = list((root / "skills").glob("*/SKILL.md")) if (root / "skills").exists() else []
+        agents = list((root / "agents").glob("*.md")) if (root / "agents").exists() else []
+        has_hooks = (root / "hooks" / "hooks.json").exists()
+        has_mcp = (root / ".mcp.json").exists()
+        version = install.get("version", "?")
+        results.append(
+            f"- **{plugin_name}** v{version}: {len(skills)} skills, "
+            f"{len(agents)} agents, hooks={'yes' if has_hooks else 'no'}, "
+            f"mcp={'yes' if has_mcp else 'no'}"
+            + (f"\n  {desc}" if desc else "")
+        )
+    return "# Installed Plugins\n\n" + "\n".join(results) if results else "No plugins found."
 
 
 @mcp.resource("harness://dashboard")
