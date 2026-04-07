@@ -282,6 +282,58 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compact_summary(_: argparse.Namespace) -> int:
+    """Generate a concise context summary for PostCompact re-injection."""
+    rows = read_frontier()
+    fr = frontier_rows(rows)
+    recent = sorted(rows, key=lambda r: r.get("timestamp", ""), reverse=True)[:3]
+
+    lines = ["[Meta-Harness Context]"]
+
+    if not rows:
+        lines.append("No runs recorded yet.")
+        print("\n".join(lines))
+        return 0
+
+    if fr:
+        lines.append("Frontier (non-dominated):")
+        for r in fr[:3]:
+            lines.append(
+                f"  {r.get('run_id','?')}: score={r.get('primary_score','?')} "
+                f"latency={r.get('avg_latency_ms','?')}ms "
+                f"tokens={r.get('avg_input_tokens','?')} "
+                f"risk={r.get('risk','?')}"
+            )
+
+    if recent:
+        lines.append("Recent:")
+        for r in recent:
+            lines.append(
+                f"  {r.get('run_id','?')}: {r.get('status','?')} "
+                f"score={r.get('primary_score','?')} "
+                f"note={r.get('note','')}"
+            )
+
+    completed = [r for r in rows if r.get("status") == "complete"]
+    completed.sort(key=lambda r: r.get("timestamp", ""))
+    best_so_far = -10**18
+    regression_count = 0
+    for row in completed:
+        score = as_float(row.get("primary_score", "nan"))
+        if score != score:
+            continue
+        if score < best_so_far:
+            regression_count += 1
+        best_so_far = max(best_so_far, score)
+
+    if regression_count > 0:
+        lines.append(f"Regressions detected: {regression_count}")
+
+    lines.append(f"Total runs: {len(rows)}")
+    print("\n".join(lines))
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="meta_harness.py")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -323,6 +375,9 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("validate")
     s.add_argument("path", nargs="?")
     s.set_defaults(func=cmd_validate)
+
+    s = sub.add_parser("compact-summary")
+    s.set_defaults(func=cmd_compact_summary)
 
     return p
 

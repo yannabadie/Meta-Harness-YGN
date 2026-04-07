@@ -1,0 +1,71 @@
+"""Tests for meta_harness.py — Phase 0: compact-summary subcommand."""
+import json
+import os
+import pathlib
+import tempfile
+import csv
+
+import pytest
+
+# Override PLUGIN_DATA before import
+_tmp = tempfile.mkdtemp()
+os.environ["CLAUDE_PLUGIN_DATA"] = _tmp
+
+from scripts.meta_harness import main, read_frontier, FRONTIER, TSV_HEADER, ensure_dirs
+
+
+@pytest.fixture(autouse=True)
+def clean_state():
+    """Reset frontier.tsv before each test."""
+    ensure_dirs()
+    with FRONTIER.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f, delimiter="\t")
+        writer.writerow(TSV_HEADER)
+    yield
+
+
+def _add_row(run_id, score, latency, tokens, status="complete"):
+    """Helper to add a row to frontier.tsv."""
+    rows = read_frontier()
+    rows.append({
+        "run_id": run_id,
+        "status": status,
+        "primary_score": str(score),
+        "avg_latency_ms": str(latency),
+        "avg_input_tokens": str(tokens),
+        "risk": "low",
+        "note": f"test {run_id}",
+        "timestamp": "2026-04-07T00:00:00Z",
+    })
+    with FRONTIER.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=TSV_HEADER, delimiter="\t")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({k: row.get(k, "") for k in TSV_HEADER})
+
+
+class TestCompactSummary:
+    def test_empty_frontier(self, capsys, monkeypatch):
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "compact-summary"])
+        main()
+        out = capsys.readouterr().out
+        assert "No runs recorded" in out
+
+    def test_with_runs(self, capsys, monkeypatch):
+        _add_row("run-0001", 0.72, 8500, 11000)
+        _add_row("run-0002", 0.76, 8100, 10500)
+        _add_row("run-0003", 0.68, 9000, 12000)
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "compact-summary"])
+        main()
+        out = capsys.readouterr().out
+        assert "run-0002" in out
+        assert "0.76" in out
+        assert len(out) < 3000
+
+    def test_output_is_valid_for_injection(self, capsys, monkeypatch):
+        _add_row("run-0001", 0.72, 8500, 11000)
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "compact-summary"])
+        main()
+        out = capsys.readouterr().out
+        assert isinstance(out, str)
+        assert len(out) > 0
