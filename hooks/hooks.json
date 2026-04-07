@@ -21,6 +21,22 @@
         ]
       }
     ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/mh-record-session"
+          },
+          {
+            "type": "prompt",
+            "model": "haiku",
+            "timeout": 15,
+            "prompt": "You are a Meta-Harness quality gate. Check this stop event: $ARGUMENTS\n\nRules:\n1. If stop_hook_active is true, return {\"ok\": true}.\n2. If the last_assistant_message mentions /mh:evolve and does NOT mention recording metrics or updating frontier, return {\"ok\": false, \"reason\": \"Harness evolution requires recording metrics before concluding. Use frontier_record or mh-record-metrics.\"}.\n3. Otherwise return {\"ok\": true}."
+          }
+        ]
+      }
+    ],
     "PostCompact": [
       {
         "hooks": [
@@ -31,12 +47,22 @@
         ]
       }
     ],
-    "Stop": [
+    "InstructionsLoaded": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/mh-record-session"
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/log-instructions.mjs"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/capture-subagent.mjs"
           }
         ]
       }
