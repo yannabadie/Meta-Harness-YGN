@@ -1,0 +1,39 @@
+{
+  "name": "propose-improvement",
+  "type": "capability",
+  "difficulty": "medium",
+  "description": "Evaluate whether a proposed harness candidate includes a coherent hypothesis, safety note, and valid patch.",
+  "checks": {
+    "deterministic": [
+      {
+        "type": "file_exists",
+        "path": "hypothesis.md",
+        "weight": 2.0
+      },
+      {
+        "type": "file_exists",
+        "path": "safety-note.md",
+        "weight": 1.0
+      },
+      {
+        "type": "file_exists",
+        "path": "candidate.patch",
+        "weight": 2.0
+      }
+    ],
+    "llm_judge": [
+      {
+        "criteria": "The hypothesis clearly states what changed and predicts a specific measurable improvement. It is not vague or generic.",
+        "weight": 2.0
+      },
+      {
+        "criteria": "The safety note identifies at least one concrete risk and explains why the change is reversible.",
+        "weight": 1.5
+      },
+      {
+        "criteria": "The candidate patch only modifies harness surfaces (CLAUDE.md, .claude/*, prompts/*, skills/*, agents/*). It does not touch application code.",
+        "weight": 3.0
+      }
+    ]
+  }
+}

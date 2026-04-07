@@ -1,0 +1,25 @@
+{
+  "$schema": "meta-harness-eval-task-v1",
+  "_comment": "Reference schema for Meta-Harness eval tasks. All eval tasks follow this format.",
+  "name": "example-task",
+  "type": "regression",
+  "difficulty": "easy",
+  "description": "Human-readable description of what this eval tests.",
+  "checks": {
+    "deterministic": [
+      {
+        "type": "exit_code",
+        "command": "python -m pytest tests/",
+        "expected": 0,
+        "weight": 1.0,
+        "_comment": "Types: exit_code, file_exists, file_contains, file_not_contains, json_valid, command_output"
+      }
+    ],
+    "llm_judge": [
+      {
+        "criteria": "Plain-English description of what the LLM judge should evaluate.",
+        "weight": 1.0
+      }
+    ]
+  }
+}

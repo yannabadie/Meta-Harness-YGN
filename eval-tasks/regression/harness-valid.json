@@ -1,0 +1,33 @@
+{
+  "name": "harness-valid",
+  "type": "regression",
+  "difficulty": "easy",
+  "description": "Verify all harness files parse correctly — JSON valid, frontmatter present, validate passes.",
+  "checks": {
+    "deterministic": [
+      {
+        "type": "json_valid",
+        "path": ".claude-plugin/plugin.json",
+        "weight": 2.0
+      },
+      {
+        "type": "json_valid",
+        "path": "hooks/hooks.json",
+        "weight": 2.0
+      },
+      {
+        "type": "file_contains",
+        "path": "skills/harness-evolve/SKILL.md",
+        "pattern": "^---",
+        "weight": 1.0
+      },
+      {
+        "type": "exit_code",
+        "command": "python3 scripts/meta_harness.py validate",
+        "expected": 0,
+        "weight": 2.0
+      }
+    ],
+    "llm_judge": []
+  }
+}
