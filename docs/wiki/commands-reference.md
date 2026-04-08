@@ -760,7 +760,7 @@ python scripts/meta_harness.py parallel-run [--count N] [--json]
 | `--count` | 3 | Number of run directories to reserve |
 | `--json` | off | Output as `{"run_ids": [...], "count": N}` |
 
-Reserves N run IDs simultaneously. Used for parallel candidate evaluation (multiple proposers working concurrently).
+Reserves N run IDs simultaneously. Refuses counts below 1. Each reserved run gets placeholder files, a valid `metrics.json` stub with `status=reserved`, and a matching `reserved` row in `frontier.tsv`. Used for parallel candidate evaluation (multiple proposers working concurrently).
 
 **Example:**
 

@@ -471,16 +471,39 @@ def cmd_parallel_run(args: argparse.Namespace) -> int:
     """Reserve N candidate run IDs for parallel evaluation."""
     ensure_dirs()
     count = args.count
+    if count < 1:
+        print("Error: count must be >= 1")
+        return 1
     run_ids = []
     for _ in range(count):
         run_id = next_run_id()
         run_dir = RUNS_DIR / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = iso_timestamp()
+        reserved_row = {
+            "run_id": run_id,
+            "status": "reserved",
+            "primary_score": "",
+            "avg_latency_ms": "",
+            "avg_input_tokens": "",
+            "risk": "",
+            "consistency": "",
+            "instruction_adherence": "",
+            "tool_efficiency": "",
+            "error_count": "",
+            "note": "",
+            "timestamp": timestamp,
+        }
+        upsert_frontier_row(reserved_row)
         for name in ["hypothesis.md", "safety-note.md", "validation.txt",
-                      "candidate.patch", "metrics.json", "notes.md"]:
+                      "candidate.patch", "notes.md"]:
             path = run_dir / name
             if not path.exists():
                 path.write_text("", encoding="utf-8")
+        (run_dir / "metrics.json").write_text(
+            json.dumps(reserved_row, indent=2) + "\n",
+            encoding="utf-8",
+        )
         run_ids.append(run_id)
     if args.json:
         print(json.dumps({"run_ids": run_ids, "count": count}))

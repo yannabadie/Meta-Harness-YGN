@@ -233,6 +233,43 @@ class TestParallelRun:
         assert len(data["run_ids"]) == 3
         assert data["run_ids"][0] != data["run_ids"][1]
 
+    def test_rejects_non_positive_count(self, capsys, monkeypatch):
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "parallel-run", "--count", "0"])
+        result = main()
+
+        assert result == 1
+        out = capsys.readouterr().out
+        assert "count must be >= 1" in out
+
+    def test_initializes_reserved_metrics(self, capsys, monkeypatch):
+        from scripts.meta_harness import RUNS_DIR
+
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "parallel-run", "--count", "2", "--json"])
+        result = main()
+
+        assert result == 0
+        out = capsys.readouterr().out
+        data = json.loads(out)
+
+        for run_id in data["run_ids"]:
+            metrics = json.loads((RUNS_DIR / run_id / "metrics.json").read_text(encoding="utf-8"))
+            assert metrics["run_id"] == run_id
+            assert metrics["status"] == "reserved"
+            assert metrics["timestamp"]
+
+    def test_records_reserved_rows_in_frontier(self, capsys, monkeypatch):
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "parallel-run", "--count", "2", "--json"])
+        result = main()
+
+        assert result == 0
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        rows = {row["run_id"]: row for row in read_frontier()}
+
+        for run_id in data["run_ids"]:
+            assert rows[run_id]["status"] == "reserved"
+            assert rows[run_id]["timestamp"]
+
 
 class TestCompactSummary:
     def test_empty_frontier(self, capsys, monkeypatch):
