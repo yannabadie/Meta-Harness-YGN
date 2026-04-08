@@ -153,3 +153,24 @@ class TestNoveltyAndScopeChecks:
         f.write_text("--- a/src/app.py\n+++ b/src/app.py\n@@ -1 +1 @@\n-old\n+new\n", encoding="utf-8")
         result = run_check({"type": "files_in_scope", "path": str(f), "weight": 3.0}, str(tmp_path))
         assert result["passed"] is False
+
+
+class TestConfidence:
+    def test_check_includes_confidence(self, tmp_path):
+        from scripts.eval_runner import run_check
+        f = tmp_path / "test.json"
+        f.write_text('{"ok": true}', encoding="utf-8")
+        result = run_check({"type": "json_valid", "path": str(f), "weight": 1.0}, str(tmp_path))
+        assert result["confidence"] == "high"
+
+    def test_confidence_weighted_score(self):
+        from scripts.eval_runner import compute_score
+        results = [
+            {"passed": True, "weight": 1.0, "confidence": "high"},
+            {"passed": False, "weight": 1.0, "confidence": "low"},
+        ]
+        # Without confidence weighting
+        score_plain = compute_score(results, weight_by_confidence=False)
+        # With confidence weighting: high pass (1.0*1.0) vs low fail (1.0*0.6)
+        score_weighted = compute_score(results, weight_by_confidence=True)
+        assert score_weighted > score_plain  # high-confidence pass weighs more

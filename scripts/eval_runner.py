@@ -190,6 +190,24 @@ def _check_files_in_scope(check: dict[str, Any], cwd: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Confidence map — deterministic checks = HIGH, command-dependent = MEDIUM,
+# unknown / LLM-driven = LOW.
+# ---------------------------------------------------------------------------
+
+CONFIDENCE_MAP: dict[str, str] = {
+    "json_valid": "high",
+    "file_exists": "high",
+    "file_contains": "high",
+    "file_not_contains": "high",
+    "exit_code": "high",
+    "command_output": "medium",  # depends on command reliability
+    "patch_not_empty": "high",
+    "max_files_changed": "high",
+    "files_in_scope": "high",
+}
+
+
+# ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
 
@@ -214,44 +232,62 @@ def run_check(check: dict[str, Any], cwd: str) -> dict[str, Any]:
     """Execute one deterministic check and return a result dict.
 
     Returns a dict with at minimum:
-        passed   bool
-        weight   float
-        type     str
-        evidence str
+        passed      bool
+        weight      float
+        type        str
+        evidence    str
+        confidence  str   ("high", "medium", or "low")
     """
     check_type = check.get("type", "")
     handler = _CHECK_HANDLERS.get(check_type)
+    confidence = CONFIDENCE_MAP.get(check_type, "low")
     if handler is None:
         return {
             "type": check_type,
             "passed": False,
             "weight": check.get("weight", 1.0),
             "evidence": f"Unknown check type: {check_type!r}",
+            "confidence": confidence,
         }
     try:
-        return handler(check, cwd)
+        result = handler(check, cwd)
+        result["confidence"] = confidence
+        return result
     except Exception as exc:  # noqa: BLE001
         return {
             "type": check_type,
             "passed": False,
             "weight": check.get("weight", 1.0),
             "evidence": f"Unexpected error: {exc}",
+            "confidence": confidence,
         }
 
 
-def compute_score(results: list[dict[str, Any]]) -> float:
+def compute_score(results: list[dict[str, Any]], weight_by_confidence: bool = False) -> float:
     """Return the weighted fraction of passed checks.
 
     Score = sum(weight for passed checks) / sum(all weights).
     Returns 0.0 for an empty list.
+
+    Args:
+        results: List of check result dicts from run_check().
+        weight_by_confidence: If True, multiply each check's weight by a
+            confidence factor (high=1.0, medium=0.8, low=0.6) so that
+            deterministic checks contribute more than LLM-judged ones.
     """
     if not results:
         return 0.0
-    total_weight = sum(r.get("weight", 1.0) for r in results)
-    if total_weight == 0.0:
-        return 0.0
-    passed_weight = sum(r.get("weight", 1.0) for r in results if r.get("passed"))
-    return passed_weight / total_weight
+    CONF_WEIGHT: dict[str, float] = {"high": 1.0, "medium": 0.8, "low": 0.6}
+    total = 0.0
+    passed = 0.0
+    for r in results:
+        w = r.get("weight", 1.0)
+        if weight_by_confidence:
+            w *= CONF_WEIGHT.get(r.get("confidence", "low"), 0.6)
+        total += w
+        if r.get("passed"):
+            passed += w
+    return passed / total if total > 0 else 0.0
 
 
 def run_eval_task(task: dict[str, Any], cwd: str) -> dict[str, Any]:
@@ -399,8 +435,9 @@ def main() -> int:
                 f"score={task_result['deterministic_score']:.2%})"
             )
             for cr in task_result["check_results"]:
-                mark = "+" if cr["passed"] else "-"
-                print(f"         [{mark}] {cr['type']}: {cr['evidence']}")
+                mark = "PASS" if cr["passed"] else "FAIL"
+                conf = cr.get("confidence", "low").upper()
+                print(f"         [{mark}] {cr['type']} ({conf}): {cr['evidence']}")
 
     return 0 if report["aggregate_score"] == 1.0 or report["total_tasks"] == 0 else 1
 
