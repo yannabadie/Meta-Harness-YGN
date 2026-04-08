@@ -70,7 +70,7 @@ python -m pytest tests/ -q
 Expected output:
 
 ```
-55 passed in Xs
+70 passed in Xs
 ```
 
 If any tests fail, check that Python 3.10+ is active. All tests use stdlib only — no additional packages needed.

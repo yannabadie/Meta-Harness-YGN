@@ -492,7 +492,7 @@ bin/mh-validate [path]
 |---|---|---|
 | `path` | Current directory | Project root to validate |
 
-**What it does:** Lightweight JSON syntax validator. Scans `.claude-plugin/*.json`, `.claude/**/*.json`, `.meta-harness/**/*.json`, and `prompts/**/*.json`. Prints errors and exits 1 if any file fails to parse; exits 0 with a pass message otherwise.
+**What it does:** Lightweight JSON syntax validator. Scans `.claude-plugin/*.json`, `.claude/**/*.json`, `.meta-harness/**/*.json`, `prompts/**/*.json`, and `.mcp.json`. Prints errors and exits 1 if any file fails to parse; exits 0 with a pass message otherwise.
 
 **Example:**
 
@@ -554,10 +554,14 @@ bin/mh-promote <run_id>
 
 1. Checks that `candidate.patch` exists and is non-empty for the run
 2. Checks that `metrics.json` exists (refuses to promote unevaluated candidates)
-3. Creates a git safety tag `harness-pre-<run_id>`
-4. Runs `git apply --check` to verify the patch applies cleanly
-5. Applies `git apply`
-6. Updates the row in `frontier.tsv` to `status=promoted`
+3. Validates that `metrics.json` contains valid JSON
+4. Refuses to continue unless the current directory is inside a git worktree
+5. Refuses to continue if tracked files are dirty (`git status --porcelain --untracked-files=no`)
+6. Refuses to continue if the safety tag `harness-pre-<run_id>` already exists
+7. Runs `git apply --check` to verify the patch applies cleanly
+8. Creates a git safety tag `harness-pre-<run_id>`
+9. Applies `git apply`
+10. Updates `frontier.tsv` and `metrics.json` to `status=promoted`
 
 **Example:**
 
@@ -774,7 +778,7 @@ python scripts/meta_harness.py parallel-run --count 3 --json
 python scripts/meta_harness.py promote <run_id>
 ```
 
-Applies the candidate patch to the working tree, creates a safety tag, and updates `frontier.tsv` to `status=promoted`. Refuses if no `metrics.json` exists for the run. Equivalent to `bin/mh-promote`.
+Applies the candidate patch to the working tree, creates a safety tag, and updates `frontier.tsv` plus `metrics.json` to `status=promoted`. Refuses if `metrics.json` is missing or invalid, if the directory is not a git worktree, if tracked files are dirty, or if the safety tag already exists. Equivalent to `bin/mh-promote`.
 
 ---
 

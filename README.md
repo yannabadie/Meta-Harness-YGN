@@ -172,7 +172,7 @@ Verdict: PROMOTE
 | Agents | Proposer, evaluator (context-break), auditor (read-only), harvester (BM25) | 4 |
 | Hooks | SessionStart, PostToolUse, Stop (Haiku quality gate), PostCompact, InstructionsLoaded, SubagentStop | 7 |
 | Eval checks | json_valid, file_exists, file_contains, file_not_contains, exit_code, command_output, patch_not_empty, max_files_changed, files_in_scope | 9 |
-| Tests | Unit + integration | 55 |
+| Tests | Unit + integration | 70 |
 
 ---
 

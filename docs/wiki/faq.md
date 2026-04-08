@@ -64,7 +64,7 @@ Partially. The eval engine, context harvester, and frontier tracking all work wi
 
 - **Git-based context harvesting** — the harvester calls `git log`, `git log --name-only`, and `git diff --stat HEAD~5..HEAD`. On non-git directories, these fail silently and are skipped (the harvester catches exceptions).
 - **Rollback** — `mh-rollback` uses `git apply -R`. Without git, you must undo patches manually.
-- **Promotion safety tags** — `mh-promote` creates a git tag before applying the patch. Without git, the tag step fails but the patch application may still succeed.
+- **Promotion** — `mh-promote` now requires a real git worktree. It refuses to run outside git because promotion creates a safety tag and validates the tracked worktree state first.
 
 Everything else works: skills, hooks, the MCP server, eval tasks, frontier tracking, session logs.
 
