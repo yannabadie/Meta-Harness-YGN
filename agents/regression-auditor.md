@@ -1,7 +1,7 @@
 ---
 name: regression-auditor
 description: Analyze regressions across harness candidates using scores, traces, and diffs. Focus on causal explanations and safer next steps.
-model: inherit
+model: sonnet
 effort: high
 maxTurns: 20
 disallowedTools: Write, Edit, MultiEdit

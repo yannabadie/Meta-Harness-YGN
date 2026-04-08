@@ -1,7 +1,7 @@
 ---
 name: harness-evaluator
 description: Evaluate harness candidates using deterministic checks and LLM judgment. Reads ONLY disk artifacts — never the proposer's reasoning.
-model: inherit
+model: sonnet
 effort: high
 maxTurns: 20
 isolation: worktree
