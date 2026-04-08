@@ -1,0 +1,23 @@
+{
+  "name": "context-harvester-runs",
+  "type": "regression",
+  "difficulty": "easy",
+  "description": "The context harvester must produce output without errors.",
+  "checks": {
+    "deterministic": [
+      {
+        "type": "exit_code",
+        "command": "python scripts/context_harvester.py --project . --objective test --budget 500",
+        "expected": 0,
+        "weight": 3.0
+      },
+      {
+        "type": "command_output",
+        "command": "python scripts/context_harvester.py --project . --objective test --budget 500",
+        "pattern": "Project Context",
+        "weight": 2.0
+      }
+    ],
+    "llm_judge": []
+  }
+}

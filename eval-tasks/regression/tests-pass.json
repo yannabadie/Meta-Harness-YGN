@@ -1,0 +1,17 @@
+{
+  "name": "tests-pass",
+  "type": "regression",
+  "difficulty": "easy",
+  "description": "All 55 tests must pass. This is the baseline regression check.",
+  "checks": {
+    "deterministic": [
+      {
+        "type": "exit_code",
+        "command": "python -m pytest tests/ -q --tb=no",
+        "expected": 0,
+        "weight": 5.0
+      }
+    ],
+    "llm_judge": []
+  }
+}

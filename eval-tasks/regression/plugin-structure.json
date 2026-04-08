@@ -1,0 +1,46 @@
+{
+  "name": "plugin-structure",
+  "type": "regression",
+  "difficulty": "easy",
+  "description": "All required plugin files exist and are valid.",
+  "checks": {
+    "deterministic": [
+      {
+        "type": "file_exists",
+        "path": ".claude-plugin/plugin.json",
+        "weight": 2.0
+      },
+      {
+        "type": "file_exists",
+        "path": ".mcp.json",
+        "weight": 2.0
+      },
+      {
+        "type": "file_exists",
+        "path": "hooks/hooks.json",
+        "weight": 2.0
+      },
+      {
+        "type": "file_exists",
+        "path": "output-styles/meta-harness.md",
+        "weight": 1.0
+      },
+      {
+        "type": "file_exists",
+        "path": "LICENSE",
+        "weight": 1.0
+      },
+      {
+        "type": "json_valid",
+        "path": ".claude-plugin/plugin.json",
+        "weight": 2.0
+      },
+      {
+        "type": "json_valid",
+        "path": ".mcp.json",
+        "weight": 2.0
+      }
+    ],
+    "llm_judge": []
+  }
+}

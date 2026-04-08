@@ -1,0 +1,17 @@
+{
+  "name": "mcp-server-starts",
+  "type": "regression",
+  "difficulty": "easy",
+  "description": "The FastMCP server must import without errors.",
+  "checks": {
+    "deterministic": [
+      {
+        "type": "exit_code",
+        "command": "python -c \"import servers.mh_server\"",
+        "expected": 0,
+        "weight": 3.0
+      }
+    ],
+    "llm_judge": []
+  }
+}
