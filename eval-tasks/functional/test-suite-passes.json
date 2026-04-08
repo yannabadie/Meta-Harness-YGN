@@ -1,0 +1,28 @@
+{
+  "name": "test-suite-passes",
+  "type": "functional",
+  "difficulty": "easy",
+  "description": "The project test suite passes completely — behavioral check that harness changes haven't broken functionality.",
+  "checks": {
+    "deterministic": [
+      {
+        "type": "exit_code",
+        "command": "python -m pytest tests/ -q --tb=no",
+        "expected": 0,
+        "weight": 5.0
+      },
+      {
+        "type": "before_after_command",
+        "command": "python -m pytest tests/ -q --tb=no",
+        "improvement_pattern": "passed",
+        "weight": 3.0
+      }
+    ],
+    "llm_judge": [
+      {
+        "criteria": "The test suite passes with no warnings and no degradation in test count compared to baseline.",
+        "weight": 2.0
+      }
+    ]
+  }
+}
