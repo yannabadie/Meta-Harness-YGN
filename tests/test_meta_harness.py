@@ -118,6 +118,20 @@ class TestCheckpoint:
             assert result["run_id"] != "run-0052"
 
 
+class TestPromote:
+    def test_promote_requires_metrics(self, capsys, monkeypatch):
+        from scripts.meta_harness import RUNS_DIR
+        ensure_dirs()
+        run_dir = RUNS_DIR / "run-0060"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "candidate.patch").write_text("some patch", encoding="utf-8")
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "promote", "run-0060"])
+        result = main()
+        assert result == 1  # no metrics = error
+        out = capsys.readouterr().out
+        assert "No metrics" in out
+
+
 class TestParallelRun:
     def test_reserves_multiple_ids(self, capsys, monkeypatch):
         monkeypatch.setattr("sys.argv", ["meta_harness.py", "parallel-run", "--count", "3", "--json"])

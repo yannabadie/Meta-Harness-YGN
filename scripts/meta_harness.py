@@ -319,6 +319,62 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_promote(args: argparse.Namespace) -> int:
+    """Apply a candidate's patch to the working tree and tag it."""
+    ensure_dirs()
+    run_id = args.run_id
+    run_dir = RUNS_DIR / run_id
+    patch_file = run_dir / "candidate.patch"
+
+    if not patch_file.exists() or patch_file.stat().st_size == 0:
+        print(f"Error: No valid patch for {run_id}")
+        return 1
+
+    # Check metrics exist
+    metrics_file = run_dir / "metrics.json"
+    if not metrics_file.exists():
+        print(f"Error: No metrics recorded for {run_id}. Run evaluation first.")
+        return 1
+
+    import subprocess
+
+    # Check patch applies cleanly
+    check = subprocess.run(
+        ["git", "apply", "--check", str(patch_file)],
+        capture_output=True, text=True,
+    )
+    if check.returncode != 0:
+        print(f"Error: Patch does not apply cleanly:\n{check.stderr}")
+        return 1
+
+    # Create safety tag
+    tag_name = f"harness-pre-{run_id}"
+    subprocess.run(["git", "tag", tag_name, "-m", f"Pre-promotion safety tag for {run_id}"],
+                    capture_output=True)
+
+    # Apply patch
+    result = subprocess.run(
+        ["git", "apply", str(patch_file)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"Error applying patch:\n{result.stderr}")
+        return 1
+
+    # Update status in frontier
+    rows = read_frontier()
+    for row in rows:
+        if row.get("run_id") == run_id:
+            row["status"] = "promoted"
+            break
+    write_frontier(rows)
+
+    print(f"Promoted {run_id}")
+    print(f"Safety tag: {tag_name}")
+    print(f"To rollback: git apply -R {patch_file}")
+    return 0
+
+
 def cmd_parallel_run(args: argparse.Namespace) -> int:
     """Reserve N candidate run IDs for parallel evaluation."""
     ensure_dirs()
@@ -447,6 +503,10 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--count", type=int, default=3)
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_parallel_run)
+
+    s = sub.add_parser("promote")
+    s.add_argument("run_id")
+    s.set_defaults(func=cmd_promote)
 
     return p
 
