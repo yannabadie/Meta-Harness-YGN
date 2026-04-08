@@ -2,6 +2,32 @@
 
 All notable changes to Meta-Harness-YGN are documented here.
 
+## [1.1.0] - 2026-04-08
+
+### New Features
+- **Parallel candidate evaluation** — `parallel-run --count N` reserves N run IDs atomically for concurrent evaluation
+- **Automated promotion** — `promote <run_id>` applies candidate patches with safety git tags, updates frontier status to "promoted"
+- **Time-series visualization** — `timeline` renders sparkline trends (▁▂▃▅▇) for score, latency, and token metrics over time
+- **Cross-project frontier comparison** — `compare-projects` scans sibling frontier.tsv files and ranks projects by best score
+- **Plugin capability discovery** — `plugin_scan` now lists callable skills and MCP tools from all installed plugins, injected into the proposer's context
+- **New bin scripts** — `mh-promote` for CLI promotion
+
+### Fixes
+- Fixed UTF-8 encoding for sparklines and Unicode symbols on Windows
+- Filtered empty projects from cross-project comparison
+- SessionStart hook Python resolution fallback chain (mh-python → python3 → python)
+
+## [1.0.0] - 2026-04-07
+
+### Release
+- Competitive README oriented around user problems
+- CHANGELOG.md tracking all versions from v0.1.0
+- MIT LICENSE file
+- GitHub Release with structured notes
+- Meta-benchmark: plugin optimized its own eval suite (run-0005)
+- All Codex audit bugs fixed (eval_run KeyError, ISO timestamps, badge version)
+- 6 eval tasks at 100% cold-run score
+
 ## [0.5.0] - 2026-04-07
 
 ### Phase 4: Autonomous Loop
