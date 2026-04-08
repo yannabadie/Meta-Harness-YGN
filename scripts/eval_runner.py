@@ -165,6 +165,27 @@ def _check_max_files_changed(check: dict[str, Any], cwd: str) -> dict[str, Any]:
     return {"type": "max_files_changed", "passed": passed, "weight": check.get("weight", 1.0), "evidence": evidence}
 
 
+def _check_before_after(check: dict[str, Any], cwd: str) -> dict[str, Any]:
+    """Run a command and check output matches an improvement pattern."""
+    command = check.get("command", "")
+    pattern = check.get("improvement_pattern", "")
+    try:
+        proc = subprocess.run(command, shell=True, capture_output=True, text=True, cwd=cwd, timeout=120)
+        output = proc.stdout + proc.stderr
+        if pattern:
+            match = re.search(pattern, output)
+            passed = match is not None
+            evidence = f"Pattern '{pattern}': {'found' if passed else 'not found'} in output"
+        else:
+            passed = proc.returncode == 0
+            evidence = f"Exit {proc.returncode}, output: {output[:200]}"
+    except subprocess.TimeoutExpired:
+        passed, evidence = False, "Timed out (120s)"
+    except Exception as exc:
+        passed, evidence = False, str(exc)
+    return {"type": "before_after_command", "passed": passed, "weight": check.get("weight", 1.0), "evidence": evidence}
+
+
 def _check_files_in_scope(check: dict[str, Any], cwd: str) -> dict[str, Any]:
     path = _resolve_path(check["path"], cwd)
     HARNESS_PATTERNS = [
@@ -204,6 +225,7 @@ CONFIDENCE_MAP: dict[str, str] = {
     "patch_not_empty": "high",
     "max_files_changed": "high",
     "files_in_scope": "high",
+    "before_after_command": "medium",
 }
 
 
@@ -221,6 +243,7 @@ _CHECK_HANDLERS: dict[str, Any] = {
     "patch_not_empty": _check_patch_not_empty,
     "max_files_changed": _check_max_files_changed,
     "files_in_scope": _check_files_in_scope,
+    "before_after_command": _check_before_after,
 }
 
 

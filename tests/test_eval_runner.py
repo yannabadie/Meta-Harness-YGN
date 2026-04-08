@@ -155,6 +155,13 @@ class TestNoveltyAndScopeChecks:
         assert result["passed"] is False
 
 
+    def test_before_after_command(self, tmp_path):
+        from scripts.eval_runner import run_check
+        result = run_check({"type": "before_after_command", "command": "python -c \"print('score: 0.85')\"", "improvement_pattern": "score: 0\\.[89]", "weight": 2.0}, str(tmp_path))
+        assert result["passed"] is True
+        assert result["confidence"] == "medium"
+
+
 class TestConfidence:
     def test_check_includes_confidence(self, tmp_path):
         from scripts.eval_runner import run_check
