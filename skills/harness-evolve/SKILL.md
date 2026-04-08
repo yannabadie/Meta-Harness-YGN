@@ -65,6 +65,14 @@ Dispatch the **harness-proposer** subagent with this context:
 
 Wait for the proposer to complete. Verify that `$RUN_DIR/hypothesis.md` and `$RUN_DIR/candidate.patch` exist.
 
+### Gate: Verify proposal artifacts
+Before proceeding, verify these files exist in $RUN_DIR:
+- hypothesis.md (must be non-empty, follow the Claim/Evidence/Predicted/Risk template)
+- candidate.patch (must be non-empty)
+- safety-note.md (must exist)
+
+If ANY artifact is missing or empty, STOP and report the failure. Do NOT proceed to Phase 3.
+
 ## Phase 3: EVALUATE
 
 Run deterministic evaluation:
@@ -86,6 +94,13 @@ Then dispatch the **harness-evaluator** subagent to assess LLM-judge criteria:
 
 Wait for the evaluator. Verify that `$RUN_DIR/metrics.json` exists.
 
+### Gate: Verify evaluation artifacts
+Before proceeding, verify:
+- metrics.json exists in $RUN_DIR and contains valid JSON
+- frontier.tsv was updated (run `mh-frontier --markdown` to confirm)
+
+If metrics were not recorded, STOP. Do NOT proceed to Phase 4.
+
 ## Phase 4: AUDIT
 
 Dispatch the **regression-auditor** subagent:
@@ -96,6 +111,12 @@ Dispatch the **regression-auditor** subagent:
 > Write analysis.md to $RUN_DIR with: likely cause, confidence, evidence, recommendation.
 
 Wait for the auditor. Read `$RUN_DIR/analysis.md`.
+
+### Gate: Verify audit artifacts
+Before reporting, verify:
+- analysis.md exists in $RUN_DIR
+
+If missing, note "audit skipped" in the report but proceed to Phase 5.
 
 ## Phase 5: REPORT
 
