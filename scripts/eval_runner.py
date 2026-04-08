@@ -313,8 +313,13 @@ def load_eval_tasks(eval_dir: str) -> list[dict[str, Any]]:
     return tasks
 
 
-def run_all_evals(eval_dir: str, cwd: str) -> dict[str, Any]:
+def run_all_evals(eval_dir: str, cwd: str, include_requires_run: bool = False) -> dict[str, Any]:
     """Run every task in *eval_dir* and return an aggregate report.
+
+    Args:
+        eval_dir: Directory containing eval task JSON files.
+        cwd: Working directory for running checks.
+        include_requires_run: If False (default), skip tasks with "requires_run": true.
 
     Returns:
         tasks           list of per-task result dicts from run_eval_task()
@@ -325,6 +330,8 @@ def run_all_evals(eval_dir: str, cwd: str) -> dict[str, Any]:
     tasks = load_eval_tasks(eval_dir)
     task_results: list[dict[str, Any]] = []
     for task in tasks:
+        if task.get("requires_run") and not include_requires_run:
+            continue
         task_results.append(run_eval_task(task, cwd))
 
     total_tasks = len(task_results)

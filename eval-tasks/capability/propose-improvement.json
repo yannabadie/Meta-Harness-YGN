@@ -2,6 +2,8 @@
   "name": "propose-improvement",
   "type": "capability",
   "difficulty": "medium",
+  "requires_run": true,
+  "_comment": "This task requires a prior /mh:evolve run. Set requires_run=true to skip in cold-run evals.",
   "description": "Evaluate whether a proposed harness candidate includes a coherent hypothesis, safety note, and valid patch.",
   "checks": {
     "deterministic": [

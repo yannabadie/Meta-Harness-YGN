@@ -179,8 +179,24 @@ def harvest_claude_md(path: str) -> list[dict[str, Any]]:
     return items
 
 
+def _project_hash(project_path: str) -> str:
+    """Derive the project directory name Claude Code uses in ~/.claude/projects/.
+
+    Claude Code hashes the git repo root path. We try to match by checking
+    if the project path appears in the directory name (normalized).
+    """
+    normalized = pathlib.Path(project_path).resolve().as_posix()
+    # Claude Code uses a scheme like "C--Code-ProjectName" on Windows
+    # Convert path separators to hyphens for matching
+    return normalized.replace("/", "-").replace(":", "").replace("\\", "-").lstrip("-")
+
+
 def harvest_memory(path: str) -> list[dict[str, Any]]:
-    """Extract context from ~/.claude/projects/*/memory/ directories."""
+    """Extract context from ~/.claude/projects/*/memory/ directories.
+
+    Prioritizes the current project's memory. Other projects' memory is
+    included at lower priority only if it passes BM25 relevance scoring.
+    """
     items: list[dict[str, Any]] = []
     try:
         home = pathlib.Path.home()
@@ -188,32 +204,48 @@ def harvest_memory(path: str) -> list[dict[str, Any]]:
         if not projects_dir.exists():
             return items
 
-        # Find memory files across all projects
+        # Try to identify the current project's memory directory
+        proj_hash = _project_hash(path)
+
+        # Find memory files — prioritize current project
         for memory_file in sorted(projects_dir.glob("*/memory/*.md")):
+            proj_dir_name = memory_file.parent.parent.name
+            # Check if this is the current project (fuzzy match on path components)
+            is_current = any(
+                part.lower() in proj_dir_name.lower()
+                for part in pathlib.Path(path).resolve().parts[-2:]
+                if len(part) > 2
+            )
             try:
                 text = memory_file.read_text(encoding="utf-8", errors="replace")
                 if text.strip():
                     items.append({
                         "id": f"memory:{memory_file.parent.parent.name}/{memory_file.name}",
                         "source": "memory",
-                        "text": text,
-                        "recency": 0.9,
-                        "freq": 1,
+                        "text": text if is_current else text[:500],
+                        "recency": 1.0 if is_current else 0.3,
+                        "freq": 2 if is_current else 1,
                     })
             except Exception:
                 pass
 
         # Also check plain memory files
         for memory_file in sorted(projects_dir.glob("*/memory.md")):
+            proj_dir_name = memory_file.parent.name
+            is_current = any(
+                part.lower() in proj_dir_name.lower()
+                for part in pathlib.Path(path).resolve().parts[-2:]
+                if len(part) > 2
+            )
             try:
                 text = memory_file.read_text(encoding="utf-8", errors="replace")
                 if text.strip():
                     items.append({
-                        "id": f"memory:{memory_file.parent.name}/memory.md",
+                        "id": f"memory:{proj_dir_name}/memory.md",
                         "source": "memory",
-                        "text": text,
-                        "recency": 0.9,
-                        "freq": 1,
+                        "text": text if is_current else text[:500],
+                        "recency": 1.0 if is_current else 0.3,
+                        "freq": 2 if is_current else 1,
                     })
             except Exception:
                 pass
