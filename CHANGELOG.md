@@ -2,6 +2,23 @@
 
 All notable changes to Meta-Harness-YGN are documented here.
 
+## [1.2.0] - 2026-04-08
+
+### Paper-Aligned (arXiv:2603.28052)
+- **Execution traces fed to proposer** — `harvest_sessions()` reads session logs and prior run artifacts (hypothesis, analysis, patches). Paper proved traces improve proposal quality by +43% vs summaries.
+- **Context budget 1,500→8,000 tokens** — Proposer now receives 5x more context, including trace excerpts and prior candidate source code.
+- **Prior candidates injected** — Evolve pipeline calls `trace_search` and `candidate_diff` for top-3 frontier runs. Proposer sees what was tried, what worked, what failed.
+- **Enriched trace logging** — `cmd_log_write` now captures tool_input excerpt (1500 chars) and tool_response (500 chars), not just tool name and path.
+- **Behavioral evaluation** — New `before_after_command` check type for functional testing (does the harness change actually help?).
+- **Functional eval task category** — `eval-tasks/functional/test-suite-passes.json` verifies project tests still pass after harness changes.
+- **Traces source weight** — `SOURCE_WEIGHTS["traces"] = 0.95` (second only to CLAUDE.md).
+
+### AgentSys-Inspired
+- Structural phase gates in evolve pipeline — abort on missing artifacts
+- Model tier optimization — evaluator/auditor on sonnet, save opus for proposals
+- Two-axis eval scoring — confidence (HIGH/MEDIUM/LOW) based on check type determinism
+- Deterministic imperative rule extraction before BM25 scoring
+
 ## [1.1.0] - 2026-04-08
 
 ### New Features

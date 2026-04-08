@@ -1,6 +1,6 @@
 {
   "name": "mh",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Scientific harness optimizer for Claude Code. Proposes controlled candidates, evaluates with evidence, tracks a Pareto frontier.",
   "author": {
     "name": "Yann Abadie"
