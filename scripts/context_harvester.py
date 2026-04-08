@@ -8,6 +8,7 @@ import argparse
 import collections
 import json
 import math
+import os
 import pathlib
 import re
 import subprocess
@@ -421,6 +422,80 @@ def harvest_docs(path: str) -> list[dict[str, Any]]:
     return items
 
 
+def harvest_sessions(path: str) -> list[dict[str, Any]]:
+    """Extract context from prior session logs and run artifacts.
+
+    Reads:
+    - Session logs from $CLAUDE_PLUGIN_DATA/sessions/*.log (newest 5, max 3000 chars each)
+    - Run artifacts (hypothesis.md, analysis.md, candidate.patch) from 3 most recent runs
+
+    Each item gets source="traces" and freq=3 (high priority — paper proves traces are #1).
+    """
+    items: list[dict[str, Any]] = []
+
+    plugin_data_env = os.environ.get("CLAUDE_PLUGIN_DATA") or os.environ.get("MH_PLUGIN_DATA")
+    if not plugin_data_env:
+        return items
+
+    plugin_data = pathlib.Path(plugin_data_env)
+
+    # Session logs — newest 5, max 3000 chars each
+    sessions_dir = plugin_data / "sessions"
+    try:
+        if sessions_dir.exists():
+            log_files = sorted(
+                sessions_dir.glob("*.log"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )[:5]
+            for log_file in log_files:
+                try:
+                    text = log_file.read_text(encoding="utf-8", errors="replace")
+                    excerpt = text[:3000]
+                    if excerpt.strip():
+                        items.append({
+                            "id": f"traces:session:{log_file.name}",
+                            "source": "traces",
+                            "text": f"## Session Log: {log_file.name}\n\n{excerpt}",
+                            "recency": 0.95,
+                            "freq": 3,
+                        })
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # Run artifacts from 3 most recent runs
+    runs_dir = plugin_data / "runs"
+    try:
+        if runs_dir.exists():
+            run_dirs = sorted(
+                (d for d in runs_dir.iterdir() if d.is_dir()),
+                key=lambda d: d.stat().st_mtime,
+                reverse=True,
+            )[:3]
+            for run_dir in run_dirs:
+                for artifact_name in ("hypothesis.md", "analysis.md", "candidate.patch"):
+                    artifact = run_dir / artifact_name
+                    try:
+                        if artifact.exists():
+                            text = artifact.read_text(encoding="utf-8", errors="replace").strip()
+                            if text:
+                                items.append({
+                                    "id": f"traces:run:{run_dir.name}:{artifact_name}",
+                                    "source": "traces",
+                                    "text": f"## {run_dir.name} / {artifact_name}\n\n{text}",
+                                    "recency": 0.9,
+                                    "freq": 3,
+                                })
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    return items
+
+
 # ---------------------------------------------------------------------------
 # Source weights
 # ---------------------------------------------------------------------------
@@ -430,6 +505,7 @@ _SOURCE_WEIGHTS: dict[str, float] = {
     "memory": 0.9,
     "git_recent": 0.8,
     "docs": 0.7,
+    "traces": 0.95,
 }
 
 
@@ -452,6 +528,7 @@ def harvest(
     all_items.extend(harvest_memory(project_path))
     all_items.extend(harvest_git(project_path))
     all_items.extend(harvest_docs(project_path))
+    all_items.extend(harvest_sessions(project_path))
 
     if not all_items:
         return "# Project Context\n\nNo context sources found."

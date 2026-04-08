@@ -121,6 +121,18 @@ class TestHarvestPipeline:
         assert "No context" in result or "Project Context" in result
 
 
+class TestHarvestSessions:
+    def test_no_crash_without_plugin_data(self):
+        from scripts.context_harvester import harvest_sessions
+        import os
+        old_cpd = os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+        old_mpd = os.environ.pop("MH_PLUGIN_DATA", None)
+        result = harvest_sessions(".")
+        assert isinstance(result, list)
+        if old_cpd: os.environ["CLAUDE_PLUGIN_DATA"] = old_cpd
+        if old_mpd: os.environ["MH_PLUGIN_DATA"] = old_mpd
+
+
 class TestImperativeExtraction:
     def test_extracts_must_rules(self):
         from scripts.context_harvester import extract_imperative_rules
