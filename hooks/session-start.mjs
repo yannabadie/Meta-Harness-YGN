@@ -9,33 +9,40 @@ import path from "node:path";
 
 const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || process.env.MH_PLUGIN_ROOT || ".";
 const script = path.join(pluginRoot, "scripts", "meta_harness.py");
+const mhPython = path.join(pluginRoot, "bin", "mh-python");
+
+// Try mh-python (plugin's resolver), fallback to python3, then python
+function findPython() {
+  for (const cmd of [mhPython, "python3", "python"]) {
+    try {
+      execSync(`"${cmd}" --version`, { encoding: "utf-8", timeout: 5000, stdio: "pipe" });
+      return cmd;
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
+const py = findPython();
+if (!py) process.exit(0); // No Python — degrade gracefully
 
 let summaryOutput = "";
 
 try {
-  // Initialize persistent storage
-  execSync(`mh-python "${script}" init`, {
-    encoding: "utf-8",
-    timeout: 10000,
-  });
-} catch {
-  // Python not available — degrade gracefully
-}
+  execSync(`"${py}" "${script}" init`, { encoding: "utf-8", timeout: 10000, stdio: "pipe" });
+} catch { /* degrade gracefully */ }
 
 try {
-  // Generate compact summary for context injection
-  summaryOutput = execSync(`mh-python "${script}" compact-summary`, {
+  summaryOutput = execSync(`"${py}" "${script}" compact-summary`, {
     encoding: "utf-8",
     timeout: 10000,
+    stdio: ["pipe", "pipe", "pipe"],
   }).trim();
 } catch {
   summaryOutput = "";
 }
 
-// Output additionalContext if we have a summary
 if (summaryOutput) {
-  const result = { additionalContext: summaryOutput };
-  process.stdout.write(JSON.stringify(result));
+  process.stdout.write(JSON.stringify({ additionalContext: summaryOutput }));
 }
 
 process.exit(0);
