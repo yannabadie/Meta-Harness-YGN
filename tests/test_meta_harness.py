@@ -118,6 +118,17 @@ class TestCheckpoint:
             assert result["run_id"] != "run-0052"
 
 
+class TestCompareProjects:
+    def test_compare_shows_current(self, capsys, monkeypatch):
+        _add_row("run-0080", 0.85, 7000, 9000)
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "compare-projects"])
+        main()
+        out = capsys.readouterr().out
+        assert "Cross-Project" in out
+        assert "current" in out
+        assert "0.850" in out
+
+
 class TestTimeline:
     def test_timeline_with_data(self, capsys, monkeypatch):
         _add_row("run-0070", 0.72, 8500, 11000)

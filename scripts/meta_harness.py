@@ -319,6 +319,60 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compare_projects(args: argparse.Namespace) -> int:
+    """Compare frontier data across projects by scanning ~/.claude/plugins/data/."""
+    projects_data = pathlib.Path.home() / ".claude" / "plugins" / "data"
+
+    # Also check PLUGIN_DATA parent for sibling project data
+    comparisons = []
+
+    # Current project
+    rows = read_frontier()
+    fr = frontier_rows(rows)
+    best_score = max((as_float(r.get("primary_score", "0")) for r in fr), default=0.0)
+    comparisons.append({
+        "project": "current",
+        "runs": len(rows),
+        "frontier_size": len(fr),
+        "best_score": best_score,
+    })
+
+    # Scan for other meta-harness data directories
+    for search_dir in [projects_data, PLUGIN_DATA.parent]:
+        if not search_dir.exists():
+            continue
+        for d in search_dir.iterdir():
+            if not d.is_dir() or d == PLUGIN_DATA:
+                continue
+            other_frontier = d / "frontier.tsv"
+            if not other_frontier.exists():
+                continue
+            try:
+                with other_frontier.open("r", newline="", encoding="utf-8") as f:
+                    import csv as _csv
+                    reader = _csv.DictReader(f, delimiter="\t")
+                    other_rows = list(reader)
+                other_fr = frontier_rows(other_rows)
+                other_best = max((as_float(r.get("primary_score", "0")) for r in other_fr), default=0.0)
+                comparisons.append({
+                    "project": d.name,
+                    "runs": len(other_rows),
+                    "frontier_size": len(other_fr),
+                    "best_score": other_best,
+                })
+            except Exception:
+                pass
+
+    print("# Cross-Project Frontier Comparison\n")
+    print(f"| Project | Runs | Frontier | Best Score |")
+    print(f"|---------|------|----------|------------|")
+    for c in sorted(comparisons, key=lambda x: x["best_score"], reverse=True):
+        print(f"| {c['project'][:30]} | {c['runs']} | {c['frontier_size']} | {c['best_score']:.3f} |")
+
+    print(f"\n{len(comparisons)} project(s) found.")
+    return 0
+
+
 def cmd_timeline(args: argparse.Namespace) -> int:
     """Show frontier metrics over time with sparkline visualization."""
     rows = read_frontier()
@@ -569,6 +623,9 @@ def parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("timeline")
     s.set_defaults(func=cmd_timeline)
+
+    s = sub.add_parser("compare-projects")
+    s.set_defaults(func=cmd_compare_projects)
 
     return p
 
