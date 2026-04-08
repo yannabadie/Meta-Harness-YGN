@@ -27,7 +27,7 @@ echo "Run: $RUN_ID at $RUN_DIR"
 Gather project context relevant to the objective. Run:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context_harvester.py --project . --objective "$ARGUMENTS" --budget 1500
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context_harvester.py --project . --objective "$ARGUMENTS" --budget 8000
 ```
 
 Save the output to `$RUN_DIR/context-snapshot.md` for crash recovery.
@@ -39,6 +39,12 @@ Also read the current frontier and regressions:
 Discover installed plugins and their callable capabilities:
 - Call the `plugin_scan` MCP tool (with `include_capabilities=true`)
 - Save the output — it lists skills and MCP tools from other plugins that agents can use
+
+Read execution traces from prior sessions and runs:
+- Call the `trace_search` MCP tool with the objective as query to find relevant session traces
+- For each of the top 3 frontier runs, call `candidate_diff` to get their full patches, hypotheses, and safety notes
+
+These traces are critical — the Meta-Harness paper proved raw traces improve proposal quality by +43% vs summaries.
 
 ## Phase 2: PROPOSE
 
@@ -53,6 +59,11 @@ Dispatch the **harness-proposer** subagent with this context:
 > You may reference other plugins' skills or MCP tools in your proposal.
 > For example, you can propose a rule that triggers `/superpowers:test-driven-development`,
 > or a skill that calls Context7 for doc verification, or a hook that uses Playwright for visual checks.
+>
+> **Prior candidates:** [Include candidate_diff output for top-3 frontier runs — their patches, hypotheses, and what worked/failed]
+> **Execution traces:** [Include trace_search results — tool calls, errors, patterns from recent sessions]
+>
+> Study what was tried before. The paper proves that reading prior candidate source code and traces is the #1 factor for better proposals.
 >
 > Create these files in $RUN_DIR:
 > - hypothesis.md (Claim / Evidence / Predicted impact / Risk)
