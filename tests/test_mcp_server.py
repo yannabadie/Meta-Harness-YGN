@@ -33,7 +33,7 @@ class TestMCPServerStructure:
             import servers.mh_server as srv
             assert hasattr(srv, "mcp")
         except ImportError as e:
-            if "mcp" in str(e):
+            if "mcp" in str(e).lower():
                 pytest.skip("mcp package not installed (optional dependency)")
             raise
 

@@ -34,12 +34,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import pathlib
 import re
 import subprocess
 import sys
 from typing import Any
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from scripts.config import PLUGIN_DATA
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -340,7 +344,7 @@ def _fingerprint_task(task: dict[str, Any], cwd: str) -> str:
 
 
 def _load_cache() -> dict:
-    cache_file = pathlib.Path(os.environ.get("CLAUDE_PLUGIN_DATA", os.environ.get("MH_PLUGIN_DATA", ""))) / "eval_cache.json"
+    cache_file = PLUGIN_DATA / "eval_cache.json"
     if cache_file.exists():
         try:
             return json.loads(cache_file.read_text(encoding="utf-8"))
@@ -350,7 +354,7 @@ def _load_cache() -> dict:
 
 
 def _save_cache(cache: dict) -> None:
-    cache_file = pathlib.Path(os.environ.get("CLAUDE_PLUGIN_DATA", os.environ.get("MH_PLUGIN_DATA", ""))) / "eval_cache.json"
+    cache_file = PLUGIN_DATA / "eval_cache.json"
     try:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         cache_file.write_text(json.dumps(cache, indent=2), encoding="utf-8")
@@ -436,6 +440,8 @@ def load_eval_tasks(eval_dir: str) -> list[dict[str, Any]]:
         return tasks
 
     for json_file in sorted(dir_path.rglob("*.json")):
+        if json_file.name.startswith("_"):
+            continue  # skip schema/meta files like _schema.json
         try:
             with open(json_file, encoding="utf-8", errors="replace") as fh:
                 data = json.load(fh)

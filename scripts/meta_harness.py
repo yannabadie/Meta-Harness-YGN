@@ -2,58 +2,29 @@
 from __future__ import annotations
 
 import argparse
-import csv
-import datetime as dt
 import json
 import os
 import pathlib
 import re
 import sys
-from typing import Iterable
 
-PLUGIN_DATA = pathlib.Path(os.environ.get("CLAUDE_PLUGIN_DATA", "/tmp/meta-harness-lab"))
-PLUGIN_ROOT = pathlib.Path(os.environ.get("CLAUDE_PLUGIN_ROOT", pathlib.Path(__file__).resolve().parents[1]))
-FRONTIER = PLUGIN_DATA / "frontier.tsv"
-RUNS_DIR = PLUGIN_DATA / "runs"
-SESSIONS_DIR = PLUGIN_DATA / "sessions"
+if __package__ in (None, ""):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-TSV_HEADER = [
-    "run_id", "status", "primary_score", "avg_latency_ms",
-    "avg_input_tokens", "risk",
-    "consistency", "instruction_adherence", "tool_efficiency", "error_count",
-    "note", "timestamp",
-]
-
-
-def ensure_dirs() -> None:
-    PLUGIN_DATA.mkdir(parents=True, exist_ok=True)
-    RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
-    if not FRONTIER.exists():
-        with FRONTIER.open("w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f, delimiter="\t")
-            writer.writerow(TSV_HEADER)
-
-
-def session_path() -> pathlib.Path:
-    sid = os.environ.get("CLAUDE_SESSION_ID") or dt.datetime.now(dt.timezone.utc).strftime("session-%Y%m%d-%H%M%S")
-    return SESSIONS_DIR / f"{sid}.log"
-
-
-def read_frontier() -> list[dict[str, str]]:
-    ensure_dirs()
-    with FRONTIER.open("r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f, delimiter="\t")
-        return list(reader)
-
-
-def write_frontier(rows: Iterable[dict[str, str]]) -> None:
-    ensure_dirs()
-    with FRONTIER.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=TSV_HEADER, delimiter="\t")
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({k: row.get(k, "") for k in TSV_HEADER})
+from scripts.config import (
+    FRONTIER,
+    PLUGIN_DATA,
+    RUNS_DIR,
+    TSV_HEADER,
+    as_float,
+    ensure_dirs,
+    iso_timestamp,
+    next_run_id,
+    read_frontier,
+    session_path,
+    update_frontier_row,
+    upsert_frontier_row,
+)
 
 
 def cmd_init(_: argparse.Namespace) -> int:
@@ -61,7 +32,7 @@ def cmd_init(_: argparse.Namespace) -> int:
     sp = session_path()
     sp.parent.mkdir(parents=True, exist_ok=True)
     with sp.open("a", encoding="utf-8") as f:
-        f.write(f"[{dt.datetime.now(dt.timezone.utc).isoformat()}Z] session_start cwd={os.getcwd()}\n")
+        f.write(f"[{iso_timestamp()}] session_start cwd={os.getcwd()}\n")
     print(str(PLUGIN_DATA))
     return 0
 
@@ -71,7 +42,7 @@ def cmd_log_write(_: argparse.Namespace) -> int:
     raw = sys.stdin.read().strip()
     sp = session_path()
     with sp.open("a", encoding="utf-8") as f:
-        stamp = dt.datetime.now(dt.timezone.utc).isoformat() + "Z"
+        stamp = iso_timestamp()
         if not raw:
             f.write(f"[{stamp}] write_event raw=<empty>\n")
             return 0
@@ -99,18 +70,8 @@ def cmd_record_session(_: argparse.Namespace) -> int:
     ensure_dirs()
     sp = session_path()
     with sp.open("a", encoding="utf-8") as f:
-        f.write(f"[{dt.datetime.now(dt.timezone.utc).isoformat()}Z] session_stop cwd={os.getcwd()}\n")
+        f.write(f"[{iso_timestamp()}] session_stop cwd={os.getcwd()}\n")
     return 0
-
-
-def next_run_id() -> str:
-    ensure_dirs()
-    existing = []
-    for p in RUNS_DIR.iterdir():
-        if p.is_dir() and re.fullmatch(r"run-\d{4}", p.name):
-            existing.append(int(p.name.split("-")[1]))
-    n = max(existing, default=0) + 1
-    return f"run-{n:04d}"
 
 
 def write_checkpoint(run_dir: pathlib.Path, phase: str, turn: int, objective: str) -> None:
@@ -120,7 +81,7 @@ def write_checkpoint(run_dir: pathlib.Path, phase: str, turn: int, objective: st
         "phase": phase,
         "turn": turn,
         "objective": objective,
-        "last_updated": dt.datetime.now(dt.timezone.utc).isoformat() + "Z",
+        "last_updated": iso_timestamp(),
     }
     (run_dir / "checkpoint.json").write_text(
         json.dumps(data, indent=2) + "\n", encoding="utf-8"
@@ -153,13 +114,6 @@ def cmd_next_run(args: argparse.Namespace) -> int:
             path.write_text("", encoding="utf-8")
     print(str(run_dir) if args.path else run_id)
     return 0
-
-
-def as_float(value: str) -> float:
-    try:
-        return float(value)
-    except Exception:
-        return float("nan")
 
 
 def dominates(a: dict[str, str], b: dict[str, str]) -> bool:
@@ -221,46 +175,9 @@ def cmd_frontier(args: argparse.Namespace) -> int:
 
 
 def cmd_record_metrics(args: argparse.Namespace) -> int:
-    rows = read_frontier()
     run_id = args.run_id
-    updated = False
-    timestamp = dt.datetime.now(dt.timezone.utc).isoformat() + "Z"
-    for row in rows:
-        if row.get("run_id") == run_id:
-            row.update({
-                "status": args.status,
-                "primary_score": args.primary_score,
-                "avg_latency_ms": args.avg_latency_ms,
-                "avg_input_tokens": args.avg_input_tokens,
-                "risk": args.risk,
-                "consistency": args.consistency,
-                "instruction_adherence": args.instruction_adherence,
-                "tool_efficiency": args.tool_efficiency,
-                "error_count": args.error_count,
-                "note": args.note,
-                "timestamp": timestamp,
-            })
-            updated = True
-            break
-    if not updated:
-        rows.append({
-            "run_id": run_id,
-            "status": args.status,
-            "primary_score": args.primary_score,
-            "avg_latency_ms": args.avg_latency_ms,
-            "avg_input_tokens": args.avg_input_tokens,
-            "risk": args.risk,
-            "consistency": args.consistency,
-            "instruction_adherence": args.instruction_adherence,
-            "tool_efficiency": args.tool_efficiency,
-            "error_count": args.error_count,
-            "note": args.note,
-            "timestamp": timestamp,
-        })
-    write_frontier(rows)
-    run_dir = RUNS_DIR / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "metrics.json").write_text(json.dumps({
+    timestamp = iso_timestamp()
+    row = {
         "run_id": run_id,
         "status": args.status,
         "primary_score": args.primary_score,
@@ -273,7 +190,14 @@ def cmd_record_metrics(args: argparse.Namespace) -> int:
         "error_count": args.error_count,
         "note": args.note,
         "timestamp": timestamp,
-    }, indent=2) + "\n", encoding="utf-8")
+    }
+    upsert_frontier_row(row)
+    run_dir = RUNS_DIR / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "metrics.json").write_text(
+        json.dumps(row, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(run_id)
     return 0
 
@@ -312,7 +236,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     # Lightweight default validator: JSON syntax + obvious file existence checks.
     target = pathlib.Path(args.path or os.getcwd())
     json_files = []
-    for pattern in [".claude-plugin/*.json", ".claude/**/*.json", ".meta-harness/**/*.json", "prompts/**/*.json"]:
+    for pattern in [".claude-plugin/*.json", ".claude/**/*.json", ".meta-harness/**/*.json", "prompts/**/*.json", ".mcp.json"]:
         json_files.extend(target.glob(pattern))
     bad = []
     for jf in json_files:
@@ -484,12 +408,7 @@ def cmd_promote(args: argparse.Namespace) -> int:
         return 1
 
     # Update status in frontier
-    rows = read_frontier()
-    for row in rows:
-        if row.get("run_id") == run_id:
-            row["status"] = "promoted"
-            break
-    write_frontier(rows)
+    update_frontier_row(run_id, status="promoted")
 
     print(f"Promoted {run_id}")
     print(f"Safety tag: {tag_name}")

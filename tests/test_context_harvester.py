@@ -104,13 +104,13 @@ class TestHarvestPipeline:
     def test_harvest_on_current_project(self):
         from scripts.context_harvester import harvest
         # Run against the actual project directory
-        result = harvest("C:/Code/Meta-Harness-YGN", "improve validation")
+        result = harvest(str(pathlib.Path(__file__).resolve().parents[1]), "improve validation")
         assert "# Project Context" in result
         assert len(result) > 50
 
     def test_harvest_respects_budget(self):
         from scripts.context_harvester import harvest, estimate_tokens
-        result = harvest("C:/Code/Meta-Harness-YGN", "test", budget=500)
+        result = harvest(str(pathlib.Path(__file__).resolve().parents[1]), "test", budget=500)
         tokens = estimate_tokens(result)
         # Should be roughly within budget (with some overhead for headers)
         assert tokens < 700  # generous margin for formatting

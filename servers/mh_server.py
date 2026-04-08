@@ -2,54 +2,53 @@
 """Meta-Harness MCP Server — exposes harness tools and resources over stdio."""
 from __future__ import annotations
 
-import csv
-import io
-import os
 import pathlib
+import sys
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from scripts.config import (
+    PLUGIN_DATA,
+    PLUGIN_ROOT,
+    RUNS_DIR,
+    as_float,
+    read_frontier,
+    upsert_frontier_row,
+)
 
 try:
     from mcp.server.fastmcp import FastMCP
 except ImportError:
-    raise SystemExit(
-        "mcp package required. Install with: pip install 'mcp>=1.12'"
+    FastMCP = None  # mcp is optional; error raised only when server is started
+
+def _noop_decorator(*args, **kwargs):
+    """No-op decorator used when mcp package is not installed."""
+    def wrapper(fn):
+        return fn
+    if args and callable(args[0]):
+        return args[0]
+    return wrapper
+
+
+class _StubMCP:
+    """Stub that provides .tool() and .resource() as no-op decorators."""
+    tool = staticmethod(_noop_decorator)
+    resource = staticmethod(_noop_decorator)
+
+
+if FastMCP is not None:
+    mcp = FastMCP(
+        "mh-server",
+        instructions="Meta-Harness harness optimization server. Use tools to read frontier and resources for dashboards.",
     )
-
-PLUGIN_DATA = pathlib.Path(
-    os.environ.get("MH_PLUGIN_DATA", os.environ.get("CLAUDE_PLUGIN_DATA", "/tmp/meta-harness"))
-)
-PLUGIN_ROOT = pathlib.Path(
-    os.environ.get("MH_PLUGIN_ROOT", os.environ.get("CLAUDE_PLUGIN_ROOT", "."))
-)
-FRONTIER = PLUGIN_DATA / "frontier.tsv"
-RUNS_DIR = PLUGIN_DATA / "runs"
-
-TSV_HEADER = [
-    "run_id", "status", "primary_score", "avg_latency_ms",
-    "avg_input_tokens", "risk",
-    "consistency", "instruction_adherence", "tool_efficiency", "error_count",
-    "note", "timestamp",
-]
-
-mcp = FastMCP(
-    "mh-server",
-    instructions="Meta-Harness harness optimization server. Use tools to read frontier and resources for dashboards.",
-)
+else:
+    mcp = _StubMCP()
 
 
 def _read_frontier() -> list[dict[str, str]]:
     """Read frontier.tsv and return rows as dicts."""
-    if not FRONTIER.exists():
-        return []
-    with FRONTIER.open("r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f, delimiter="\t")
-        return list(reader)
-
-
-def _as_float(value: str) -> float:
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return float("nan")
+    return read_frontier()
 
 
 def _frontier_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -61,12 +60,12 @@ def _frontier_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
         for other in completed:
             if other is r:
                 continue
-            a_s = _as_float(other.get("primary_score", ""))
-            b_s = _as_float(r.get("primary_score", ""))
-            a_l = _as_float(other.get("avg_latency_ms", ""))
-            b_l = _as_float(r.get("avg_latency_ms", ""))
-            a_t = _as_float(other.get("avg_input_tokens", ""))
-            b_t = _as_float(r.get("avg_input_tokens", ""))
+            a_s = as_float(other.get("primary_score", ""))
+            b_s = as_float(r.get("primary_score", ""))
+            a_l = as_float(other.get("avg_latency_ms", ""))
+            b_l = as_float(r.get("avg_latency_ms", ""))
+            a_t = as_float(other.get("avg_input_tokens", ""))
+            b_t = as_float(r.get("avg_input_tokens", ""))
             vals = [a_s, b_s, a_l, b_l, a_t, b_t]
             if any(v != v for v in vals):
                 continue
@@ -75,7 +74,7 @@ def _frontier_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
                 break
         if not dominated:
             frontier.append(r)
-    return sorted(frontier, key=lambda r: -_as_float(r.get("primary_score", "0")))
+    return sorted(frontier, key=lambda r: -as_float(r.get("primary_score", "0")))
 
 
 def _md_table(rows: list[dict[str, str]], cols: list[str], limit: int = 10) -> str:
@@ -122,31 +121,16 @@ async def frontier_record(
     error_count: str = "",
 ) -> str:
     """Record metrics for a harness candidate run into frontier.tsv."""
-    import datetime as dt
-    rows = _read_frontier()
-    timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    new_row = {
+    from scripts.config import iso_timestamp
+
+    upsert_frontier_row({
         "run_id": run_id, "status": status,
         "primary_score": primary_score, "avg_latency_ms": avg_latency_ms,
         "avg_input_tokens": avg_input_tokens, "risk": risk,
         "consistency": consistency, "instruction_adherence": instruction_adherence,
         "tool_efficiency": tool_efficiency, "error_count": error_count,
-        "note": note, "timestamp": timestamp,
-    }
-    updated = False
-    for row in rows:
-        if row.get("run_id") == run_id:
-            row.update(new_row)
-            updated = True
-            break
-    if not updated:
-        rows.append(new_row)
-    PLUGIN_DATA.mkdir(parents=True, exist_ok=True)
-    with FRONTIER.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=TSV_HEADER, delimiter="\t")
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({k: row.get(k, "") for k in TSV_HEADER})
+        "note": note, "timestamp": iso_timestamp(),
+    })
     return f"Recorded metrics for {run_id}"
 
 
@@ -318,7 +302,7 @@ async def regressions_resource() -> str:
     regression_runs = []
     best_so_far = -1e18
     for row in completed:
-        score = _as_float(row.get("primary_score", "nan"))
+        score = as_float(row.get("primary_score", "nan"))
         if score != score:
             continue
         if score < best_so_far:
@@ -388,4 +372,6 @@ async def eval_run(eval_dir: str = "", cwd: str = "") -> str:
 
 
 if __name__ == "__main__":
+    if FastMCP is None:
+        raise SystemExit("mcp package required. Install with: pip install 'mcp>=1.12'")
     mcp.run(transport="stdio")

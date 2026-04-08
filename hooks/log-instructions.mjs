@@ -6,7 +6,7 @@
 import { readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
-const pluginData = process.env.CLAUDE_PLUGIN_DATA || process.env.MH_PLUGIN_DATA || "/tmp/meta-harness";
+const pluginData = process.env.CLAUDE_PLUGIN_DATA || process.env.MH_PLUGIN_DATA || "/tmp/meta-harness-lab";
 const sessionsDir = path.join(pluginData, "sessions");
 
 let input = "";

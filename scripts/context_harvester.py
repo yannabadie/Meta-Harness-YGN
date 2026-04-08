@@ -12,7 +12,13 @@ import os
 import pathlib
 import re
 import subprocess
+import sys
 from typing import Any
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from scripts.config import PLUGIN_DATA
 
 # ---------------------------------------------------------------------------
 # Tokenizer
@@ -252,8 +258,8 @@ def harvest_memory(path: str) -> list[dict[str, Any]]:
         # Find memory files — prioritize current project
         for memory_file in sorted(projects_dir.glob("*/memory/*.md")):
             proj_dir_name = memory_file.parent.parent.name
-            # Check if this is the current project (fuzzy match on path components)
-            is_current = any(
+            # Match using project hash (derived from normalized path)
+            is_current = proj_hash.lower().endswith(proj_dir_name.lower()) or proj_dir_name.lower().endswith(proj_hash.lower().split("-")[-1]) or any(
                 part.lower() in proj_dir_name.lower()
                 for part in pathlib.Path(path).resolve().parts[-2:]
                 if len(part) > 2
@@ -433,11 +439,11 @@ def harvest_sessions(path: str) -> list[dict[str, Any]]:
     """
     items: list[dict[str, Any]] = []
 
-    plugin_data_env = os.environ.get("CLAUDE_PLUGIN_DATA") or os.environ.get("MH_PLUGIN_DATA")
-    if not plugin_data_env:
-        return items
-
-    plugin_data = pathlib.Path(plugin_data_env)
+    plugin_data = pathlib.Path(
+        os.environ.get("CLAUDE_PLUGIN_DATA")
+        or os.environ.get("MH_PLUGIN_DATA")
+        or PLUGIN_DATA
+    )
 
     # Session logs — newest 5, max 3000 chars each
     sessions_dir = plugin_data / "sessions"
@@ -555,8 +561,15 @@ def harvest(
         reverse=True,
     )
 
-    # 5. RRF merge
-    fused = reciprocal_rank_fusion(bm25_ranked, recency_ranked, k=60)
+    # 4b. Frequency/priority ranking (sort by freq desc)
+    freq_ranked: list[tuple[str, float]] = sorted(
+        [(item["id"], float(item.get("freq", 1))) for item in all_items],
+        key=lambda x: x[1],
+        reverse=True,
+    )
+
+    # 5. RRF merge — all three signals contribute
+    fused = reciprocal_rank_fusion(bm25_ranked, recency_ranked, freq_ranked, k=60)
 
     # Build id -> item lookup
     item_by_id: dict[str, dict[str, Any]] = {item["id"]: item for item in all_items}
