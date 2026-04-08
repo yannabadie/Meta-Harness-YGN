@@ -371,7 +371,12 @@ async def eval_run(eval_dir: str = "", cwd: str = "") -> str:
     return "\n".join(lines)
 
 
-if __name__ == "__main__":
+def run_server(transport: str = "stdio") -> None:
+    """Start the MCP server, raising a clear runtime error if mcp is unavailable."""
     if FastMCP is None:
-        raise SystemExit("mcp package required. Install with: pip install 'mcp>=1.12'")
-    mcp.run(transport="stdio")
+        raise RuntimeError("mcp package required. Install with: pip install 'mcp>=1.12'")
+    mcp.run(transport=transport)
+
+
+if __name__ == "__main__":
+    run_server()

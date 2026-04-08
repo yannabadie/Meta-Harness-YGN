@@ -73,5 +73,5 @@ Eval tasks in `eval-tasks/` (JSON format). Run: `python scripts/eval_runner.py -
 ## Testing
 
 ```bash
-python -m pytest tests/ -v  # 76 tests
+python -m pytest tests/ -v  # 80 tests
 ```

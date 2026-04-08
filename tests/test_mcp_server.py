@@ -1,8 +1,11 @@
 """Tests for mh_server.py — Phase 0: verify tools and resources exist."""
+import builtins
+import importlib
 import os
 import tempfile
 import csv
 import pathlib
+import sys
 
 import pytest
 
@@ -27,6 +30,20 @@ with frontier_path.open("w", newline="", encoding="utf-8") as f:
 
 
 class TestMCPServerStructure:
+    @staticmethod
+    def _import_server(monkeypatch: pytest.MonkeyPatch, *, missing_mcp: bool = False):
+        sys.modules.pop("servers.mh_server", None)
+        if missing_mcp:
+            real_import = builtins.__import__
+
+            def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+                if name == "mcp.server.fastmcp":
+                    raise ImportError("mcp not installed")
+                return real_import(name, globals, locals, fromlist, level)
+
+            monkeypatch.setattr(builtins, "__import__", fake_import)
+        return importlib.import_module("servers.mh_server")
+
     def test_server_imports(self):
         """Verify the server module can be imported."""
         try:
@@ -36,6 +53,19 @@ class TestMCPServerStructure:
             if "mcp" in str(e).lower():
                 pytest.skip("mcp package not installed (optional dependency)")
             raise
+
+    def test_import_without_mcp_uses_stub(self, monkeypatch):
+        srv = self._import_server(monkeypatch, missing_mcp=True)
+
+        assert srv.FastMCP is None
+        assert hasattr(srv.mcp, "tool")
+        assert hasattr(srv.mcp, "resource")
+
+    def test_run_server_requires_mcp_only_at_runtime(self, monkeypatch):
+        srv = self._import_server(monkeypatch, missing_mcp=True)
+
+        with pytest.raises(RuntimeError, match="mcp package required"):
+            srv.run_server()
 
     def test_frontier_read_tool_exists(self):
         try:
