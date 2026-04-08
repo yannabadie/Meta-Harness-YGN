@@ -79,8 +79,16 @@ def cmd_log_write(_: argparse.Namespace) -> int:
             payload = json.loads(raw)
             tool_name = payload.get("tool_name") or payload.get("toolName") or "unknown_tool"
             tool_input = payload.get("tool_input") or payload.get("toolInput") or {}
+            tool_response = payload.get("tool_response") or payload.get("toolResponse") or ""
             file_path = tool_input.get("file_path") or tool_input.get("filePath") or tool_input.get("path") or "unknown_path"
             f.write(f"[{stamp}] write_event tool={tool_name} path={file_path}\n")
+            input_excerpt = json.dumps(tool_input, ensure_ascii=False)[:1500]
+            f.write(f"  input: {input_excerpt}\n")
+            if isinstance(tool_response, str):
+                response_excerpt = tool_response[:500]
+            else:
+                response_excerpt = json.dumps(tool_response, ensure_ascii=False)[:500]
+            f.write(f"  response: {response_excerpt}\n")
         except Exception:
             compact = re.sub(r"\s+", " ", raw)[:500]
             f.write(f"[{stamp}] write_event raw={compact}\n")
