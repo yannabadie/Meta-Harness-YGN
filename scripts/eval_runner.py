@@ -24,7 +24,9 @@ Zero external dependencies — stdlib only.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -313,8 +315,54 @@ def compute_score(results: list[dict[str, Any]], weight_by_confidence: bool = Fa
     return passed / total if total > 0 else 0.0
 
 
-def run_eval_task(task: dict[str, Any], cwd: str) -> dict[str, Any]:
+def _fingerprint_task(task: dict[str, Any], cwd: str) -> str:
+    """SHA-256 fingerprint of task definition + referenced file contents."""
+    h = hashlib.sha256()
+    h.update(json.dumps(task, sort_keys=True, separators=(",", ":")).encode())
+    for check in task.get("checks", {}).get("deterministic", []):
+        path_val = check.get("path", "")
+        if path_val:
+            p = _resolve_path(path_val, cwd)
+            if p.exists():
+                try:
+                    h.update(p.read_bytes())
+                except Exception:
+                    pass
+    return h.hexdigest()
+
+
+def _load_cache() -> dict:
+    cache_file = pathlib.Path(os.environ.get("CLAUDE_PLUGIN_DATA", os.environ.get("MH_PLUGIN_DATA", ""))) / "eval_cache.json"
+    if cache_file.exists():
+        try:
+            return json.loads(cache_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"version": 1, "entries": {}}
+
+
+def _save_cache(cache: dict) -> None:
+    cache_file = pathlib.Path(os.environ.get("CLAUDE_PLUGIN_DATA", os.environ.get("MH_PLUGIN_DATA", ""))) / "eval_cache.json"
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _is_cacheable(task: dict) -> bool:
+    """Only cache tasks with purely file-based checks (no commands)."""
+    for check in task.get("checks", {}).get("deterministic", []):
+        if check.get("type") in ("exit_code", "command_output", "before_after_command"):
+            return False
+    return True
+
+
+def run_eval_task(task: dict[str, Any], cwd: str, trials: int = 3) -> dict[str, Any]:
     """Run all deterministic checks for one eval task.
+
+    Pass^N: each check is run *trials* times; a check only counts as passed
+    if it passes in ALL trials, making flaky checks visible.
 
     Returns a dict with:
         name                 str
@@ -327,20 +375,43 @@ def run_eval_task(task: dict[str, Any], cwd: str) -> dict[str, Any]:
     checks_section = task.get("checks", {})
     deterministic_checks = checks_section.get("deterministic", [])
 
-    check_results: list[dict[str, Any]] = []
-    for check in deterministic_checks:
-        check_results.append(run_check(check, cwd))
+    if not deterministic_checks:
+        return {
+            "name": name,
+            "deterministic_score": 0.0,
+            "total_checks": 0,
+            "passed_checks": 0,
+            "check_results": [],
+        }
 
-    total = len(check_results)
-    passed = sum(1 for r in check_results if r.get("passed"))
-    score = compute_score(check_results)
+    # Run all checks N times (Pass^N: only pass if ALL trials pass)
+    trial_results: list[list[dict[str, Any]]] = []
+    for _trial in range(max(1, trials)):
+        trial_checks = [run_check(check, cwd) for check in deterministic_checks]
+        trial_results.append(trial_checks)
+
+    # Merge: a check passes only if it passed in ALL trials
+    merged: list[dict[str, Any]] = []
+    for i in range(len(deterministic_checks)):
+        passes = [trial_results[t][i]["passed"] for t in range(len(trial_results))]
+        result = trial_results[0][i].copy()
+        result["passed"] = all(passes)
+        result["trials_passed"] = sum(passes)
+        result["trials_total"] = len(trial_results)
+        if not result["passed"] and any(passes):
+            result["evidence"] += f" (flaky: {sum(passes)}/{len(trial_results)} trials)"
+        merged.append(result)
+
+    total = len(merged)
+    passed = sum(1 for r in merged if r["passed"])
+    score = compute_score(merged)
 
     return {
         "name": name,
         "deterministic_score": score,
         "total_checks": total,
         "passed_checks": passed,
-        "check_results": check_results,
+        "check_results": merged,
     }
 
 
@@ -372,13 +443,21 @@ def load_eval_tasks(eval_dir: str) -> list[dict[str, Any]]:
     return tasks
 
 
-def run_all_evals(eval_dir: str, cwd: str, include_requires_run: bool = False) -> dict[str, Any]:
+def run_all_evals(
+    eval_dir: str,
+    cwd: str,
+    include_requires_run: bool = False,
+    trials: int = 3,
+    no_cache: bool = False,
+) -> dict[str, Any]:
     """Run every task in *eval_dir* and return an aggregate report.
 
     Args:
         eval_dir: Directory containing eval task JSON files.
         cwd: Working directory for running checks.
         include_requires_run: If False (default), skip tasks with "requires_run": true.
+        trials: Pass^N — number of times each check is run (default 3).
+        no_cache: If True, skip loading from and saving to the SHA-256 result cache.
 
     Returns:
         tasks           list of per-task result dicts from run_eval_task()
@@ -387,11 +466,21 @@ def run_all_evals(eval_dir: str, cwd: str, include_requires_run: bool = False) -
         passed_tasks    int     tasks where deterministic_score == 1.0
     """
     tasks = load_eval_tasks(eval_dir)
+    cache = _load_cache() if not no_cache else {"version": 1, "entries": {}}
     task_results: list[dict[str, Any]] = []
     for task in tasks:
         if task.get("requires_run") and not include_requires_run:
             continue
-        task_results.append(run_eval_task(task, cwd))
+        fingerprint = _fingerprint_task(task, cwd)
+        cache_key = f"{fingerprint}:trials={trials}"
+        if not no_cache and cache_key in cache.get("entries", {}):
+            task_results.append(cache["entries"][cache_key])
+            continue
+        result = run_eval_task(task, cwd, trials=trials)
+        task_results.append(result)
+        if not no_cache and _is_cacheable(task):
+            cache.setdefault("entries", {})[cache_key] = result
+            _save_cache(cache)
 
     total_tasks = len(task_results)
     passed_tasks = sum(1 for r in task_results if r.get("deterministic_score", 0.0) == 1.0)
@@ -437,12 +526,23 @@ def main() -> int:
         action="store_true",
         help="Output results as JSON instead of human-readable text.",
     )
+    parser.add_argument(
+        "--trials",
+        type=int,
+        default=3,
+        help="Pass^N: trials per check (default 3)",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable SHA-256 result cache — always re-run all checks.",
+    )
 
     args = parser.parse_args()
     eval_dir = str(pathlib.Path(args.eval_dir).resolve())
     cwd = str(pathlib.Path(args.cwd).resolve())
 
-    report = run_all_evals(eval_dir, cwd)
+    report = run_all_evals(eval_dir, cwd, trials=args.trials, no_cache=args.no_cache)
 
     if args.json:
         print(json.dumps(report, indent=2))
@@ -460,7 +560,10 @@ def main() -> int:
             for cr in task_result["check_results"]:
                 mark = "PASS" if cr["passed"] else "FAIL"
                 conf = cr.get("confidence", "low").upper()
-                print(f"         [{mark}] {cr['type']} ({conf}): {cr['evidence']}")
+                trials_info = ""
+                if args.trials > 1 and "trials_passed" in cr:
+                    trials_info = f" [{cr['trials_passed']}/{cr['trials_total']} trials]"
+                print(f"         [{mark}] {cr['type']} ({conf}){trials_info}: {cr['evidence']}")
 
     return 0 if report["aggregate_score"] == 1.0 or report["total_tasks"] == 0 else 1
 

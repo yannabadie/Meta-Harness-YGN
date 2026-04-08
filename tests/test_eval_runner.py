@@ -162,6 +162,35 @@ class TestNoveltyAndScopeChecks:
         assert result["confidence"] == "medium"
 
 
+class TestPassN:
+    def test_consistent_pass_with_trials(self, tmp_path):
+        from scripts.eval_runner import run_eval_task
+        f = tmp_path / "test.json"
+        f.write_text('{"ok": true}', encoding="utf-8")
+        task = {
+            "name": "trial-test",
+            "checks": {"deterministic": [
+                {"type": "json_valid", "path": str(f), "weight": 1.0},
+            ], "llm_judge": []}
+        }
+        result = run_eval_task(task, str(tmp_path), trials=3)
+        assert result["passed_checks"] == 1
+        assert result["check_results"][0]["trials_passed"] == 3
+
+    def test_single_trial_mode(self, tmp_path):
+        from scripts.eval_runner import run_eval_task
+        f = tmp_path / "test.json"
+        f.write_text('{"ok": true}', encoding="utf-8")
+        task = {
+            "name": "single",
+            "checks": {"deterministic": [
+                {"type": "json_valid", "path": str(f), "weight": 1.0},
+            ], "llm_judge": []}
+        }
+        result = run_eval_task(task, str(tmp_path), trials=1)
+        assert result["check_results"][0]["trials_total"] == 1
+
+
 class TestConfidence:
     def test_check_includes_confidence(self, tmp_path):
         from scripts.eval_runner import run_check
