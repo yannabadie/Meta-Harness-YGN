@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/meta_harness.py compact-summary"
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/mh-python ${CLAUDE_PLUGIN_ROOT}/scripts/meta_harness.py compact-summary"
           }
         ]
       }

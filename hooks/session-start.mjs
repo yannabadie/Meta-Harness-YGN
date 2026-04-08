@@ -14,7 +14,7 @@ let summaryOutput = "";
 
 try {
   // Initialize persistent storage
-  execSync(`python3 "${script}" init`, {
+  execSync(`mh-python "${script}" init`, {
     encoding: "utf-8",
     timeout: 10000,
   });
@@ -24,7 +24,7 @@ try {
 
 try {
   // Generate compact summary for context injection
-  summaryOutput = execSync(`python3 "${script}" compact-summary`, {
+  summaryOutput = execSync(`mh-python "${script}" compact-summary`, {
     encoding: "utf-8",
     timeout: 10000,
   }).trim();

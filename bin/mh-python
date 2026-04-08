@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Resolve the best available Python 3 interpreter.
+# On Windows, python3 may not exist; only python is available.
+# On macOS/Linux, python may point to Python 2.
+if command -v python3 &>/dev/null; then
+  exec python3 "$@"
+elif command -v python &>/dev/null; then
+  exec python "$@"
+else
+  echo "Error: Python 3 not found. Install Python 3.10+ to use Meta-Harness." >&2
+  exit 1
+fi

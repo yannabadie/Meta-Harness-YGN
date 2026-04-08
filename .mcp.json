@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "mh-server": {
-      "command": "python3",
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/mh-python",
       "args": ["${CLAUDE_PLUGIN_ROOT}/servers/mh_server.py"],
       "env": {
         "MH_PLUGIN_DATA": "${CLAUDE_PLUGIN_DATA}",
