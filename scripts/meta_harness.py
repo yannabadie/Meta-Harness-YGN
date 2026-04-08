@@ -319,6 +319,65 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_timeline(args: argparse.Namespace) -> int:
+    """Show frontier metrics over time with sparkline visualization."""
+    rows = read_frontier()
+    completed = [r for r in rows if r.get("status") in ("complete", "promoted")]
+    completed.sort(key=lambda r: r.get("timestamp", ""))
+
+    if not completed:
+        print("No completed runs to visualize.")
+        return 0
+
+    SPARKS = "▁▂▃▄▅▆▇█"
+
+    def sparkline(values: list[float]) -> str:
+        if not values or all(v != v for v in values):
+            return ""
+        valid = [v for v in values if v == v]
+        if not valid:
+            return ""
+        lo, hi = min(valid), max(valid)
+        rng = hi - lo if hi > lo else 1.0
+        return "".join(
+            SPARKS[min(int((v - lo) / rng * 7), 7)] if v == v else " "
+            for v in values
+        )
+
+    scores = [as_float(r.get("primary_score", "nan")) for r in completed]
+    latencies = [as_float(r.get("avg_latency_ms", "nan")) for r in completed]
+    tokens = [as_float(r.get("avg_input_tokens", "nan")) for r in completed]
+
+    valid_scores = [s for s in scores if s == s]
+    valid_latencies = [l for l in latencies if l == l]
+    valid_tokens = [t for t in tokens if t == t]
+
+    print("# Frontier Timeline\n")
+    print(f"Runs: {len(completed)} | Period: {completed[0].get('timestamp', '?')[:10]} to {completed[-1].get('timestamp', '?')[:10]}\n")
+
+    if valid_scores:
+        best = max(valid_scores)
+        latest = valid_scores[-1]
+        delta = latest - valid_scores[0] if len(valid_scores) > 1 else 0
+        arrow = "▲" if delta > 0 else "▼" if delta < 0 else "●"
+        print(f"Score    {latest:.3f}  {arrow} {delta:+.3f}  {sparkline(scores)}")
+
+    if valid_latencies:
+        latest = valid_latencies[-1]
+        delta = valid_latencies[-1] - valid_latencies[0] if len(valid_latencies) > 1 else 0
+        arrow = "▼" if delta < 0 else "▲" if delta > 0 else "●"
+        print(f"Latency  {latest:.0f}ms  {arrow} {delta:+.0f}ms  {sparkline(latencies)}")
+
+    if valid_tokens:
+        latest = valid_tokens[-1]
+        delta = valid_tokens[-1] - valid_tokens[0] if len(valid_tokens) > 1 else 0
+        arrow = "▼" if delta < 0 else "▲" if delta > 0 else "●"
+        print(f"Tokens   {latest:.0f}  {arrow} {delta:+.0f}  {sparkline(tokens)}")
+
+    print(f"\nBest score: {max(valid_scores):.3f}" if valid_scores else "")
+    return 0
+
+
 def cmd_promote(args: argparse.Namespace) -> int:
     """Apply a candidate's patch to the working tree and tag it."""
     ensure_dirs()
@@ -507,6 +566,9 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("promote")
     s.add_argument("run_id")
     s.set_defaults(func=cmd_promote)
+
+    s = sub.add_parser("timeline")
+    s.set_defaults(func=cmd_timeline)
 
     return p
 

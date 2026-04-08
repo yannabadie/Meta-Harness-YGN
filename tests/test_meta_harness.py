@@ -118,6 +118,25 @@ class TestCheckpoint:
             assert result["run_id"] != "run-0052"
 
 
+class TestTimeline:
+    def test_timeline_with_data(self, capsys, monkeypatch):
+        _add_row("run-0070", 0.72, 8500, 11000)
+        _add_row("run-0071", 0.76, 8100, 10500)
+        _add_row("run-0072", 0.81, 7800, 10000)
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "timeline"])
+        main()
+        out = capsys.readouterr().out
+        assert "Timeline" in out
+        assert "Score" in out
+        assert "0.81" in out or "0.810" in out
+
+    def test_timeline_empty(self, capsys, monkeypatch):
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "timeline"])
+        main()
+        out = capsys.readouterr().out
+        assert "No completed runs" in out
+
+
 class TestPromote:
     def test_promote_requires_metrics(self, capsys, monkeypatch):
         from scripts.meta_harness import RUNS_DIR
