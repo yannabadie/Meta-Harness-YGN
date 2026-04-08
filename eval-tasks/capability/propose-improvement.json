@@ -21,6 +21,28 @@
         "type": "file_exists",
         "path": "candidate.patch",
         "weight": 2.0
+      },
+      {
+        "type": "file_exists",
+        "path": "validation.txt",
+        "weight": 1.0,
+        "_comment": "harness-proposer.md requires validation.txt as a deliverable"
+      },
+      {
+        "type": "patch_not_empty",
+        "path": "candidate.patch",
+        "weight": 2.0
+      },
+      {
+        "type": "max_files_changed",
+        "path": "candidate.patch",
+        "max": 3,
+        "weight": 1.5
+      },
+      {
+        "type": "files_in_scope",
+        "path": "candidate.patch",
+        "weight": 3.0
       }
     ],
     "llm_judge": [
