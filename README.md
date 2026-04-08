@@ -206,6 +206,16 @@ Seven lifecycle hooks enforce discipline without requiring manual steps:
 - `/mh:bootstrap` for zero-config project onboarding
 - Rollback support via `mh-rollback`
 
+### Meta-Benchmark: The Plugin Optimizes Itself
+
+Meta-Harness successfully optimized its own harness (run-0005):
+
+- **Gap found:** 4 eval check types (`patch_not_empty`, `max_files_changed`, `files_in_scope`, `validation.txt`) were implemented in `eval_runner.py` but never wired into any eval task. A proposer could submit an empty or out-of-scope patch and pass all deterministic checks.
+- **Fix applied:** Added 4 deterministic checks to `propose-improvement.json`, promoting the scope guard from LLM-judge-only to a hard deterministic gate.
+- **Result:** Eval suite maintained 100% (6/6 tasks, no regression). Guardrail coverage increased from 3 to 7 deterministic checks on proposal artifacts.
+
+This is the proof that the plugin's methodology works on itself.
+
 ### Next
 - Parallel candidate evaluation (multi-worktree runs)
 - Automated promotion to `.claude/` on PROMOTE verdict
