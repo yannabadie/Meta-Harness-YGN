@@ -36,6 +36,10 @@ Also read the current frontier and regressions:
 - Call the `frontier_read` MCP tool (or run `mh-frontier --markdown`)
 - Call the `harness://regressions` MCP resource (or run `mh-regressions --markdown`)
 
+Discover installed plugins and their callable capabilities:
+- Call the `plugin_scan` MCP tool (with `include_capabilities=true`)
+- Save the output — it lists skills and MCP tools from other plugins that agents can use
+
 ## Phase 2: PROPOSE
 
 Dispatch the **harness-proposer** subagent with this context:
@@ -43,7 +47,12 @@ Dispatch the **harness-proposer** subagent with this context:
 > You are proposing a harness improvement for: "$ARGUMENTS"
 >
 > Run ID: $RUN_ID
-> [Include the harvested context, frontier, and regressions from Phase 1]
+> [Include the harvested context, frontier, regressions, AND plugin capabilities from Phase 1]
+>
+> **Available external capabilities:** [paste plugin_scan output]
+> You may reference other plugins' skills or MCP tools in your proposal.
+> For example, you can propose a rule that triggers `/superpowers:test-driven-development`,
+> or a skill that calls Context7 for doc verification, or a hook that uses Playwright for visual checks.
 >
 > Create these files in $RUN_DIR:
 > - hypothesis.md (Claim / Evidence / Predicted impact / Risk)

@@ -190,8 +190,12 @@ async def candidate_diff(run_id: str) -> str:
 
 
 @mcp.tool()
-async def plugin_scan() -> str:
-    """Scan installed Claude Code plugins and report their harness surfaces."""
+async def plugin_scan(include_capabilities: bool = True) -> str:
+    """Scan installed Claude Code plugins and report their harness surfaces and usable capabilities.
+
+    Args:
+        include_capabilities: If True, list each plugin's skills and MCP tools that Meta-Harness agents can call.
+    """
     import json as _json
     plugins_dir = pathlib.Path.home() / ".claude" / "plugins"
     registry_path = plugins_dir / "installed_plugins.json"
@@ -202,8 +206,11 @@ async def plugin_scan() -> str:
     except Exception as e:
         return f"Error reading plugin registry: {e}"
     results = []
+    capabilities = []
     for key, installs in registry.get("plugins", {}).items():
         plugin_name = key.split("@")[0]
+        if plugin_name == "mh":
+            continue  # skip self
         if not installs:
             continue
         install = installs[0]
@@ -212,6 +219,7 @@ async def plugin_scan() -> str:
             continue
         manifest_path = root / ".claude-plugin" / "plugin.json"
         desc = ""
+        manifest = {}
         if manifest_path.exists():
             try:
                 manifest = _json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -229,7 +237,38 @@ async def plugin_scan() -> str:
             f"mcp={'yes' if has_mcp else 'no'}"
             + (f"\n  {desc}" if desc else "")
         )
-    return "# Installed Plugins\n\n" + "\n".join(results) if results else "No plugins found."
+
+        if include_capabilities:
+            # List callable skills
+            for skill_file in skills:
+                try:
+                    content = skill_file.read_text(encoding="utf-8", errors="replace")
+                    # Extract skill name from frontmatter
+                    for line in content.split("\n"):
+                        if line.startswith("name:"):
+                            sname = line.split(":", 1)[1].strip()
+                            capabilities.append(f"- Skill `/{plugin_name}:{sname}` — invoke for {plugin_name} functionality")
+                            break
+                except Exception:
+                    pass
+            # List MCP tools (from .mcp.json)
+            if has_mcp:
+                try:
+                    mcp_conf = _json.loads((root / ".mcp.json").read_text(encoding="utf-8"))
+                    for server_name in mcp_conf.get("mcpServers", {}):
+                        capabilities.append(f"- MCP server `{server_name}` from {plugin_name} — tools available as `mcp__plugin_{plugin_name}_{server_name}__*`")
+                except Exception:
+                    pass
+
+    output = "# Installed Plugins\n\n" + "\n".join(results) if results else "No plugins found."
+
+    if include_capabilities and capabilities:
+        output += "\n\n## Callable Capabilities\n\n"
+        output += "These skills and MCP tools from other plugins are available in this session.\n"
+        output += "Meta-Harness agents can use them during evolution phases.\n\n"
+        output += "\n".join(capabilities)
+
+    return output
 
 
 @mcp.resource("harness://dashboard")
