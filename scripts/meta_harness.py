@@ -354,12 +354,13 @@ def cmd_compare_projects(args: argparse.Namespace) -> int:
                     other_rows = list(reader)
                 other_fr = frontier_rows(other_rows)
                 other_best = max((as_float(r.get("primary_score", "0")) for r in other_fr), default=0.0)
-                comparisons.append({
-                    "project": d.name,
-                    "runs": len(other_rows),
-                    "frontier_size": len(other_fr),
-                    "best_score": other_best,
-                })
+                if other_rows:  # skip empty/header-only frontiers
+                    comparisons.append({
+                        "project": d.name,
+                        "runs": len(other_rows),
+                        "frontier_size": len(other_fr),
+                        "best_score": other_best,
+                    })
             except Exception:
                 pass
 
@@ -631,6 +632,9 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    import sys as _sys
+    if hasattr(_sys.stdout, "reconfigure"):
+        _sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     p = parser()
     args = p.parse_args()
     return int(args.func(args))
