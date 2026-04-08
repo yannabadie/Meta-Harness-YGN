@@ -6,6 +6,7 @@ import json
 import os
 import pathlib
 import re
+import subprocess
 import sys
 
 if __package__ in (None, ""):
@@ -382,7 +383,45 @@ def cmd_promote(args: argparse.Namespace) -> int:
         print(f"Error: No metrics recorded for {run_id}. Run evaluation first.")
         return 1
 
-    import subprocess
+    try:
+        metrics = json.loads(metrics_file.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"Error: Invalid metrics.json for {run_id}: {exc}")
+        return 1
+
+    git_root = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        capture_output=True,
+        text=True,
+    )
+    if git_root.returncode != 0 or git_root.stdout.strip() != "true":
+        print("Error: Promotion requires running inside a git worktree.")
+        return 1
+
+    worktree = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        capture_output=True,
+        text=True,
+    )
+    if worktree.returncode != 0:
+        print(f"Error: Unable to inspect git worktree:\n{worktree.stderr}")
+        return 1
+    if worktree.stdout.strip():
+        print("Error: Refusing to promote with a dirty git worktree. Commit or stash tracked changes first.")
+        return 1
+
+    tag_name = f"harness-pre-{run_id}"
+    tag_check = subprocess.run(
+        ["git", "tag", "--list", tag_name],
+        capture_output=True,
+        text=True,
+    )
+    if tag_check.returncode != 0:
+        print(f"Error: Unable to inspect existing safety tags:\n{tag_check.stderr}")
+        return 1
+    if tag_check.stdout.strip():
+        print(f"Error: Safety tag already exists: {tag_name}")
+        return 1
 
     # Check patch applies cleanly
     check = subprocess.run(
@@ -394,9 +433,14 @@ def cmd_promote(args: argparse.Namespace) -> int:
         return 1
 
     # Create safety tag
-    tag_name = f"harness-pre-{run_id}"
-    subprocess.run(["git", "tag", tag_name, "-m", f"Pre-promotion safety tag for {run_id}"],
-                    capture_output=True)
+    tag_create = subprocess.run(
+        ["git", "tag", tag_name, "-m", f"Pre-promotion safety tag for {run_id}"],
+        capture_output=True,
+        text=True,
+    )
+    if tag_create.returncode != 0:
+        print(f"Error: Unable to create safety tag:\n{tag_create.stderr}")
+        return 1
 
     # Apply patch
     result = subprocess.run(
@@ -404,11 +448,18 @@ def cmd_promote(args: argparse.Namespace) -> int:
         capture_output=True, text=True,
     )
     if result.returncode != 0:
+        subprocess.run(
+            ["git", "tag", "-d", tag_name],
+            capture_output=True,
+            text=True,
+        )
         print(f"Error applying patch:\n{result.stderr}")
         return 1
 
     # Update status in frontier
     update_frontier_row(run_id, status="promoted")
+    metrics["status"] = "promoted"
+    metrics_file.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
 
     print(f"Promoted {run_id}")
     print(f"Safety tag: {tag_name}")

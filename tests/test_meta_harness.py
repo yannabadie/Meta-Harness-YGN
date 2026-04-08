@@ -4,6 +4,7 @@ import os
 import pathlib
 import tempfile
 import csv
+import subprocess
 
 import pytest
 
@@ -149,6 +150,20 @@ class TestTimeline:
 
 
 class TestPromote:
+    @staticmethod
+    def _write_candidate(run_id: str, patch_text: str = "--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -1 +1 @@\n-old\n+new\n"):
+        from scripts.meta_harness import RUNS_DIR
+
+        ensure_dirs()
+        run_dir = RUNS_DIR / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "candidate.patch").write_text(patch_text, encoding="utf-8")
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"run_id": run_id, "status": "complete"}, indent=2),
+            encoding="utf-8",
+        )
+        return run_dir
+
     def test_promote_requires_metrics(self, capsys, monkeypatch):
         from scripts.meta_harness import RUNS_DIR
         ensure_dirs()
@@ -160,6 +175,52 @@ class TestPromote:
         assert result == 1  # no metrics = error
         out = capsys.readouterr().out
         assert "No metrics" in out
+
+    def test_promote_refuses_dirty_worktree(self, capsys, monkeypatch):
+        self._write_candidate("run-0061")
+
+        def fake_run(args, capture_output=True, text=True):
+            if args[:3] == ["git", "rev-parse", "--is-inside-work-tree"]:
+                return subprocess.CompletedProcess(args, 0, stdout="true\n", stderr="")
+            if args[:3] == ["git", "status", "--porcelain"]:
+                return subprocess.CompletedProcess(args, 0, stdout=" M CLAUDE.md\n", stderr="")
+            raise AssertionError(f"Unexpected git call: {args}")
+
+        monkeypatch.setattr("scripts.meta_harness.subprocess.run", fake_run)
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "promote", "run-0061"])
+        result = main()
+
+        assert result == 1
+        out = capsys.readouterr().out
+        assert "dirty git worktree" in out
+
+    def test_promote_updates_metrics_on_success(self, capsys, monkeypatch):
+        run_dir = self._write_candidate("run-0062")
+
+        def fake_run(args, capture_output=True, text=True):
+            if args[:3] == ["git", "rev-parse", "--is-inside-work-tree"]:
+                return subprocess.CompletedProcess(args, 0, stdout="true\n", stderr="")
+            if args[:3] == ["git", "status", "--porcelain"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:3] == ["git", "tag", "--list"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:3] == ["git", "apply", "--check"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "tag"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "apply"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            raise AssertionError(f"Unexpected git call: {args}")
+
+        monkeypatch.setattr("scripts.meta_harness.subprocess.run", fake_run)
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "promote", "run-0062"])
+        result = main()
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Promoted run-0062" in out
+        metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+        assert metrics["status"] == "promoted"
 
 
 class TestParallelRun:
