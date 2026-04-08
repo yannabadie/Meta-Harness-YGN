@@ -137,6 +137,25 @@ def reciprocal_rank_fusion(
 # Keys: id, source, text, recency, freq
 # ---------------------------------------------------------------------------
 
+def extract_imperative_rules(text: str) -> list[str]:
+    """Extract imperative sentences that are likely constraints or conventions.
+
+    Scans each line for modal/imperative keywords (must, never, always, should,
+    do not, don't, avoid, prefer, ensure) and returns the matching lines
+    stripped of leading list markers.  Lines shorter than 10 characters are
+    skipped to avoid noise.  Each returned string is capped at 200 characters.
+    """
+    rules: list[str] = []
+    for line in text.split("\n"):
+        line = line.strip().lstrip("- ").lstrip("* ")
+        if not line or len(line) < 10:
+            continue
+        # Match imperative patterns
+        if re.search(r'\b(must|never|always|should|do not|don\'t|avoid|prefer|ensure)\b', line, re.IGNORECASE):
+            rules.append(line[:200])
+    return rules
+
+
 def harvest_claude_md(path: str) -> list[dict[str, Any]]:
     """Extract context from CLAUDE.md and .claude/rules/ directory."""
     items: list[dict[str, Any]] = []
@@ -147,13 +166,24 @@ def harvest_claude_md(path: str) -> list[dict[str, Any]]:
     try:
         if claude_md.exists():
             text = claude_md.read_text(encoding="utf-8", errors="replace")
+            section_text = text
             items.append({
                 "id": "claude_md",
                 "source": "claude_md",
-                "text": text,
+                "text": section_text,
                 "recency": 1.0,
                 "freq": 1,
             })
+            # Extract imperative rules with higher weight (these are constraints)
+            imp_rules = extract_imperative_rules(section_text)
+            for rule in imp_rules[:5]:  # max 5 per section
+                items.append({
+                    "id": f"rule:{hash(rule)}",
+                    "source": "claude_md",
+                    "text": rule,
+                    "recency": 1.0,
+                    "freq": 2,  # higher freq = higher priority in RRF
+                })
     except Exception:
         pass
 
@@ -164,13 +194,24 @@ def harvest_claude_md(path: str) -> list[dict[str, Any]]:
             for rule_file in sorted(rules_dir.glob("*.md")):
                 try:
                     text = rule_file.read_text(encoding="utf-8", errors="replace")
+                    section_text = text
                     items.append({
                         "id": f"rule:{rule_file.name}",
                         "source": "claude_md",
-                        "text": text,
+                        "text": section_text,
                         "recency": 1.0,
                         "freq": 1,
                     })
+                    # Extract imperative rules with higher weight (these are constraints)
+                    imp_rules = extract_imperative_rules(section_text)
+                    for rule in imp_rules[:5]:  # max 5 per section
+                        items.append({
+                            "id": f"rule:{hash(rule)}",
+                            "source": "claude_md",
+                            "text": rule,
+                            "recency": 1.0,
+                            "freq": 2,  # higher freq = higher priority in RRF
+                        })
                 except Exception:
                     pass
     except Exception:

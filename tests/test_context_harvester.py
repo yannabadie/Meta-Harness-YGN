@@ -119,3 +119,19 @@ class TestHarvestPipeline:
         from scripts.context_harvester import harvest
         result = harvest("/nonexistent/path", "test")
         assert "No context" in result or "Project Context" in result
+
+
+class TestImperativeExtraction:
+    def test_extracts_must_rules(self):
+        from scripts.context_harvester import extract_imperative_rules
+        text = "Some intro text.\n- Must run tests before commit.\n- This is normal text.\n- Never edit application code."
+        rules = extract_imperative_rules(text)
+        assert len(rules) == 2
+        assert "Must run tests" in rules[0]
+        assert "Never edit" in rules[1]
+
+    def test_ignores_short_lines(self):
+        from scripts.context_harvester import extract_imperative_rules
+        text = "Must do.\nAlways check things carefully before proceeding."
+        rules = extract_imperative_rules(text)
+        assert len(rules) == 1  # "Must do." is too short
