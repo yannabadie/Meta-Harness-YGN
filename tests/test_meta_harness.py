@@ -118,6 +118,17 @@ class TestCheckpoint:
             assert result["run_id"] != "run-0052"
 
 
+class TestParallelRun:
+    def test_reserves_multiple_ids(self, capsys, monkeypatch):
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "parallel-run", "--count", "3", "--json"])
+        main()
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        assert data["count"] == 3
+        assert len(data["run_ids"]) == 3
+        assert data["run_ids"][0] != data["run_ids"][1]
+
+
 class TestCompactSummary:
     def test_empty_frontier(self, capsys, monkeypatch):
         monkeypatch.setattr("sys.argv", ["meta_harness.py", "compact-summary"])

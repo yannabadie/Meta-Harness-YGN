@@ -319,6 +319,29 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_parallel_run(args: argparse.Namespace) -> int:
+    """Reserve N candidate run IDs for parallel evaluation."""
+    ensure_dirs()
+    count = args.count
+    run_ids = []
+    for _ in range(count):
+        run_id = next_run_id()
+        run_dir = RUNS_DIR / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        for name in ["hypothesis.md", "safety-note.md", "validation.txt",
+                      "candidate.patch", "metrics.json", "notes.md"]:
+            path = run_dir / name
+            if not path.exists():
+                path.write_text("", encoding="utf-8")
+        run_ids.append(run_id)
+    if args.json:
+        print(json.dumps({"run_ids": run_ids, "count": count}))
+    else:
+        for rid in run_ids:
+            print(rid)
+    return 0
+
+
 def cmd_compact_summary(_: argparse.Namespace) -> int:
     """Generate a concise context summary for PostCompact re-injection."""
     rows = read_frontier()
@@ -419,6 +442,11 @@ def parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("compact-summary")
     s.set_defaults(func=cmd_compact_summary)
+
+    s = sub.add_parser("parallel-run")
+    s.add_argument("--count", type=int, default=3)
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(func=cmd_parallel_run)
 
     return p
 
