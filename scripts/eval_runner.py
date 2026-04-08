@@ -18,6 +18,14 @@ file_not_contains  File at `path` must NOT match `pattern` (regex).
 exit_code          Shell `command` must exit with `expected` code.
 command_output     Shell `command` stdout must match `pattern` (regex).
 
+Result caching
+--------------
+File-based checks (json_valid, file_exists, file_contains, file_not_contains,
+patch_not_empty, max_files_changed, files_in_scope) are cached via a SHA-256
+fingerprint of the task definition + file contents.  The cache is stored at
+$CLAUDE_PLUGIN_DATA/eval_cache.json (or $MH_PLUGIN_DATA).  Use --no-cache to
+force a fresh run.  Command-based checks are never cached.
+
 Zero external dependencies — stdlib only.
 """
 
