@@ -104,15 +104,52 @@ def detect_incomplete_runs() -> dict | None:
     return None
 
 
-def cmd_next_run(args: argparse.Namespace) -> int:
-    ensure_dirs()
-    run_id = args.run_id or next_run_id()
+def _reserved_row(run_id: str, timestamp: str | None = None) -> dict[str, str]:
+    return {
+        "run_id": run_id,
+        "status": "reserved",
+        "primary_score": "",
+        "avg_latency_ms": "",
+        "avg_input_tokens": "",
+        "risk": "",
+        "consistency": "",
+        "instruction_adherence": "",
+        "tool_efficiency": "",
+        "error_count": "",
+        "note": "",
+        "timestamp": timestamp or iso_timestamp(),
+    }
+
+
+def _reserve_run_dir(run_id: str, initialize_reserved: bool) -> pathlib.Path:
     run_dir = RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    for name in ["hypothesis.md", "safety-note.md", "validation.txt", "candidate.patch", "metrics.json", "notes.md"]:
+    for name in ["hypothesis.md", "safety-note.md", "validation.txt", "candidate.patch", "notes.md"]:
         path = run_dir / name
         if not path.exists():
             path.write_text("", encoding="utf-8")
+
+    if initialize_reserved:
+        reserved_row = _reserved_row(run_id)
+        upsert_frontier_row(reserved_row)
+        (run_dir / "metrics.json").write_text(
+            json.dumps(reserved_row, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    elif not (run_dir / "metrics.json").exists():
+        (run_dir / "metrics.json").write_text("", encoding="utf-8")
+
+    return run_dir
+
+
+def cmd_next_run(args: argparse.Namespace) -> int:
+    ensure_dirs()
+    if args.run_id:
+        run_id = args.run_id
+        run_dir = _reserve_run_dir(run_id, initialize_reserved=not (RUNS_DIR / run_id).exists())
+    else:
+        run_id = next_run_id()
+        run_dir = _reserve_run_dir(run_id, initialize_reserved=True)
     print(str(run_dir) if args.path else run_id)
     return 0
 
@@ -477,33 +514,7 @@ def cmd_parallel_run(args: argparse.Namespace) -> int:
     run_ids = []
     for _ in range(count):
         run_id = next_run_id()
-        run_dir = RUNS_DIR / run_id
-        run_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = iso_timestamp()
-        reserved_row = {
-            "run_id": run_id,
-            "status": "reserved",
-            "primary_score": "",
-            "avg_latency_ms": "",
-            "avg_input_tokens": "",
-            "risk": "",
-            "consistency": "",
-            "instruction_adherence": "",
-            "tool_efficiency": "",
-            "error_count": "",
-            "note": "",
-            "timestamp": timestamp,
-        }
-        upsert_frontier_row(reserved_row)
-        for name in ["hypothesis.md", "safety-note.md", "validation.txt",
-                      "candidate.patch", "notes.md"]:
-            path = run_dir / name
-            if not path.exists():
-                path.write_text("", encoding="utf-8")
-        (run_dir / "metrics.json").write_text(
-            json.dumps(reserved_row, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        _reserve_run_dir(run_id, initialize_reserved=True)
         run_ids.append(run_id)
     if args.json:
         print(json.dumps({"run_ids": run_ids, "count": count}))

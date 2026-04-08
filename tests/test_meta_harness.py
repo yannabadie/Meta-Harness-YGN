@@ -223,6 +223,58 @@ class TestPromote:
         assert metrics["status"] == "promoted"
 
 
+class TestNextRun:
+    def test_initializes_reserved_metrics_for_new_run(self, capsys, monkeypatch):
+        from scripts.meta_harness import RUNS_DIR
+
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "next-run"])
+        result = main()
+
+        assert result == 0
+        run_id = capsys.readouterr().out.strip()
+        metrics = json.loads((RUNS_DIR / run_id / "metrics.json").read_text(encoding="utf-8"))
+        assert metrics["run_id"] == run_id
+        assert metrics["status"] == "reserved"
+        assert metrics["timestamp"]
+
+    def test_records_reserved_row_in_frontier_for_new_run(self, capsys, monkeypatch):
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "next-run"])
+        result = main()
+
+        assert result == 0
+        run_id = capsys.readouterr().out.strip()
+        rows = {row["run_id"]: row for row in read_frontier()}
+        assert rows[run_id]["status"] == "reserved"
+        assert rows[run_id]["timestamp"]
+
+    def test_existing_run_id_preserves_completed_state(self, capsys, monkeypatch):
+        from scripts.meta_harness import RUNS_DIR
+
+        run_dir = RUNS_DIR / "run-0099"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        original_metrics = {
+            "run_id": "run-0099",
+            "status": "complete",
+            "primary_score": "0.91",
+            "timestamp": "2026-04-08T10:00:00Z",
+        }
+        (run_dir / "metrics.json").write_text(
+            json.dumps(original_metrics, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        _add_row("run-0099", 0.91, 5100, 8400, status="complete")
+
+        monkeypatch.setattr("sys.argv", ["meta_harness.py", "next-run", "--run-id", "run-0099", "--path"])
+        result = main()
+
+        assert result == 0
+        assert capsys.readouterr().out.strip() == str(run_dir)
+        metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+        assert metrics == original_metrics
+        rows = {row["run_id"]: row for row in read_frontier()}
+        assert rows["run-0099"]["status"] == "complete"
+
+
 class TestParallelRun:
     def test_reserves_multiple_ids(self, capsys, monkeypatch):
         monkeypatch.setattr("sys.argv", ["meta_harness.py", "parallel-run", "--count", "3", "--json"])

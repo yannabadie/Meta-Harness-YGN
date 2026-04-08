@@ -360,16 +360,17 @@ bin/mh-init
 
 **Syntax:**
 ```bash
-bin/mh-next-run [--path]
+bin/mh-next-run [--run-id RUN_ID] [--path]
 ```
 
 **Arguments:**
 
 | Flag | Description |
 |---|---|
+| `--run-id` | Override the auto-incremented ID with a specific one |
 | `--path` | Print the full path to the run directory instead of just the run ID |
 
-**What it does:** Reserves the next candidate run ID (e.g., `run-0004`) by scanning existing directories under `$CLAUDE_PLUGIN_DATA/runs/`, creates the directory, and touches placeholder files: `hypothesis.md`, `safety-note.md`, `validation.txt`, `candidate.patch`, `metrics.json`, `notes.md`.
+**What it does:** Reserves the next candidate run ID (e.g., `run-0004`) by scanning existing directories under `$CLAUDE_PLUGIN_DATA/runs/`, creates the directory, touches placeholder files, writes a valid `metrics.json` stub with `status=reserved`, and records a matching `reserved` row in `frontier.tsv`. If you pass an existing `--run-id`, it returns that run directory without resetting its recorded state.
 
 **Example:**
 
@@ -664,7 +665,7 @@ python scripts/meta_harness.py next-run [--run-id RUN_ID] [--path]
 | `--run-id` | Override the auto-incremented ID with a specific one |
 | `--path` | Print the full directory path instead of just the ID |
 
-Reserves a run directory and touches placeholder files. Used by skills and hooks.
+Reserves a run directory and initializes new reservations with placeholder files, a valid `metrics.json` stub with `status=reserved`, and a matching `reserved` row in `frontier.tsv`. If `--run-id` points to an existing run, the command returns that directory without resetting its metrics or frontier row. Used by skills and hooks.
 
 ---
 
