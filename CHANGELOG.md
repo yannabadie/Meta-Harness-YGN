@@ -2,6 +2,13 @@
 
 All notable changes to Meta-Harness-YGN are documented here.
 
+## [1.3.0] - 2026-04-08
+
+### Research-Driven (arxiv + GitHub survey, April 2026)
+- **Pass^3 evaluation** — Each check runs 3 times; only consistent passes count. Eliminates lucky frontier entries. Flaky checks annotated `(flaky: X/N trials)`. `--trials N` flag (default 3). Based on claw-eval methodology.
+- **Result fingerprinting + caching** — SHA-256 hash of (task JSON + referenced file content). File-based checks cached to `eval_cache.json`, command-based checks always re-run. `--no-cache` flag to bypass. Based on vercel agent-eval pattern.
+- **10 eval check types** — Added `before_after_command` for behavioral testing (v1.2.0).
+
 ## [1.2.0] - 2026-04-08
 
 ### Paper-Aligned (arXiv:2603.28052)
