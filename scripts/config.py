@@ -12,6 +12,7 @@ import os
 import pathlib
 import re
 import tempfile
+import time
 from collections.abc import Iterable, Iterator
 
 # ---------------------------------------------------------------------------
@@ -70,10 +71,39 @@ FRONTIER_LOCK = PLUGIN_DATA / ".frontier.lock"
 # TSV schema
 # ---------------------------------------------------------------------------
 
+RUN_STATUS_RESERVED = "reserved"
+RUN_STATUS_COMPLETE = "complete"
+RUN_STATUS_PROMOTED = "promoted"
+RUN_STATUSES = (
+    RUN_STATUS_RESERVED,
+    RUN_STATUS_COMPLETE,
+    RUN_STATUS_PROMOTED,
+)
+MEASURED_RUN_STATUSES = (
+    RUN_STATUS_COMPLETE,
+    RUN_STATUS_PROMOTED,
+)
+
+EVALUATION_VERDICTS = (
+    "accepted",
+    "accepted_with_warnings",
+    "rejected",
+    "partial",
+)
+REPORT_VERDICTS = (
+    "PROMOTE",
+    "REJECT",
+    "ITERATE",
+)
+METRICS_SCHEMA_VERSION = "2"
+
 TSV_HEADER = [
-    "run_id", "status", "primary_score", "avg_latency_ms",
-    "avg_input_tokens", "risk",
+    "run_id", "status", "metrics_schema_version",
+    "primary_score", "avg_latency_ms", "avg_input_tokens", "risk",
     "consistency", "instruction_adherence", "tool_efficiency", "error_count",
+    "sample_size", "eval_method", "deterministic_score", "llm_judge_score",
+    "evaluation_verdict", "report_verdict",
+    "benchmark_version", "baseline_run_id", "seed",
     "note", "timestamp",
 ]
 
@@ -107,6 +137,69 @@ def utc_now() -> dt.datetime:
 def iso_timestamp() -> str:
     """Return consistent ISO 8601 timestamp: YYYY-MM-DDTHH:MM:SSZ."""
     return utc_now().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _validate_choice(value: str, allowed: tuple[str, ...], field_name: str) -> None:
+    """Validate a semantic field against a canonical choice list."""
+    if value and value not in allowed:
+        allowed_values = ", ".join(allowed)
+        raise ValueError(f"{field_name} must be one of: {allowed_values}")
+
+
+def build_metrics_row(
+    run_id: str,
+    status: str,
+    *,
+    primary_score: str = "",
+    avg_latency_ms: str = "",
+    avg_input_tokens: str = "",
+    risk: str = "",
+    consistency: str = "",
+    instruction_adherence: str = "",
+    tool_efficiency: str = "",
+    error_count: str = "",
+    sample_size: str = "",
+    eval_method: str = "",
+    deterministic_score: str = "",
+    llm_judge_score: str = "",
+    evaluation_verdict: str = "",
+    report_verdict: str = "",
+    benchmark_version: str = "",
+    baseline_run_id: str = "",
+    seed: str = "",
+    note: str = "",
+    timestamp: str | None = None,
+) -> dict[str, str]:
+    """Build one canonical metrics/frontier row with shared semantic validation."""
+    _validate_choice(status, RUN_STATUSES, "status")
+    _validate_choice(evaluation_verdict, EVALUATION_VERDICTS, "evaluation_verdict")
+    _validate_choice(report_verdict, REPORT_VERDICTS, "report_verdict")
+
+    row = {
+        "run_id": run_id,
+        "status": status,
+        "metrics_schema_version": METRICS_SCHEMA_VERSION,
+        "primary_score": primary_score,
+        "avg_latency_ms": avg_latency_ms,
+        "avg_input_tokens": avg_input_tokens,
+        "risk": risk,
+        "consistency": consistency,
+        "instruction_adherence": instruction_adherence,
+        "tool_efficiency": tool_efficiency,
+        "error_count": error_count,
+        "sample_size": sample_size,
+        "eval_method": eval_method,
+        "deterministic_score": deterministic_score,
+        "llm_judge_score": llm_judge_score,
+        "evaluation_verdict": evaluation_verdict,
+        "report_verdict": report_verdict,
+        "benchmark_version": benchmark_version,
+        "baseline_run_id": baseline_run_id,
+        "seed": seed,
+        "note": note,
+        "timestamp": timestamp or iso_timestamp(),
+    }
+    return {key: str(value) for key, value in row.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +241,14 @@ def _write_frontier_unlocked(rows: Iterable[dict[str, str]]) -> None:
             writer.writeheader()
             for row in rows:
                 writer.writerow({k: row.get(k, "") for k in TSV_HEADER})
-        os.replace(tmp_path, str(FRONTIER))
+        for attempt in range(5):
+            try:
+                os.replace(tmp_path, str(FRONTIER))
+                break
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.02)
     except Exception:
         with contextlib.suppress(OSError):
             os.unlink(tmp_path)

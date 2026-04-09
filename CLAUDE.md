@@ -30,7 +30,7 @@ claude --plugin-dir ./Meta-Harness-YGN
 ```bash
 bin/mh-init                    # Initialize persistent storage
 bin/mh-next-run [--run-id RUN_ID] [--path]  # Reserve next candidate run ID
-bin/mh-record-metrics <run_id> <score> <latency> <tokens> <risk> <note> [--consistency X] [--instruction-adherence X] [--tool-efficiency X] [--error-count X]
+bin/mh-record-metrics <run_id> <score> <latency> <tokens> <risk> <note> [--status STATUS] [--consistency X] [--instruction-adherence X] [--tool-efficiency X] [--error-count X] [--sample-size N] [--eval-method M] [--deterministic-score X] [--llm-judge-score X] [--evaluation-verdict V] [--report-verdict V] [--benchmark-version V] [--baseline-run-id RUN_ID] [--seed N]
 bin/mh-frontier --markdown     # View frontier
 bin/mh-regressions --markdown  # View regressions
 bin/mh-validate [path]         # Validate JSON syntax
@@ -73,5 +73,5 @@ Eval tasks in `eval-tasks/` (JSON format). Run: `python scripts/eval_runner.py -
 ## Testing
 
 ```bash
-python -m pytest tests/ -v  # 80 tests
+python -m pytest tests/ -v  # 82 tests
 ```

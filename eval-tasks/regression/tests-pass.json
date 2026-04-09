@@ -2,7 +2,7 @@
   "name": "tests-pass",
   "type": "regression",
   "difficulty": "easy",
-  "description": "All 55 tests must pass. This is the baseline regression check.",
+  "description": "The project test suite must pass completely. This is the baseline regression check.",
   "checks": {
     "deterministic": [
       {

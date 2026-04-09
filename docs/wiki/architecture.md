@@ -212,11 +212,15 @@ async def frontier_record(
     avg_input_tokens: str, risk: str = "low", note: str = "",
     status: str = "complete", consistency: str = "",
     instruction_adherence: str = "", tool_efficiency: str = "",
-    error_count: str = "",
+    error_count: str = "", sample_size: str = "",
+    eval_method: str = "", deterministic_score: str = "",
+    llm_judge_score: str = "", evaluation_verdict: str = "",
+    report_verdict: str = "", benchmark_version: str = "",
+    baseline_run_id: str = "", seed: str = "",
 ) -> str
 ```
 
-Writes or updates a row in `frontier.tsv`. Returns `"Recorded metrics for {run_id}"`.
+Writes or updates a row in `frontier.tsv` and mirrors the same schema to `runs/<run_id>/metrics.json`. Returns `"Recorded metrics for {run_id}"`.
 
 #### `trace_search`
 

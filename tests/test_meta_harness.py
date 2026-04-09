@@ -52,11 +52,25 @@ def _add_row(run_id, score, latency, tokens, status="complete"):
 
 class TestExtendedFrontier:
     def test_new_columns_in_header(self):
+        from scripts.config import EVALUATION_VERDICTS, REPORT_VERDICTS, RUN_STATUSES
         from scripts.meta_harness import TSV_HEADER
         assert "consistency" in TSV_HEADER
         assert "instruction_adherence" in TSV_HEADER
         assert "tool_efficiency" in TSV_HEADER
         assert "error_count" in TSV_HEADER
+        assert "metrics_schema_version" in TSV_HEADER
+        assert "sample_size" in TSV_HEADER
+        assert "eval_method" in TSV_HEADER
+        assert "deterministic_score" in TSV_HEADER
+        assert "llm_judge_score" in TSV_HEADER
+        assert "evaluation_verdict" in TSV_HEADER
+        assert "report_verdict" in TSV_HEADER
+        assert "benchmark_version" in TSV_HEADER
+        assert "baseline_run_id" in TSV_HEADER
+        assert "seed" in TSV_HEADER
+        assert RUN_STATUSES == ("reserved", "complete", "promoted")
+        assert EVALUATION_VERDICTS == ("accepted", "accepted_with_warnings", "rejected", "partial")
+        assert REPORT_VERDICTS == ("PROMOTE", "REJECT", "ITERATE")
 
     def test_backward_compat_old_rows(self):
         _add_row("run-0010", 0.75, 8000, 11000)
@@ -80,6 +94,40 @@ class TestExtendedFrontier:
         assert row["instruction_adherence"] == "4.2"
         assert row["tool_efficiency"] == "12"
         assert row["error_count"] == "2"
+
+    def test_record_metrics_persists_evaluation_metadata(self, capsys, monkeypatch):
+        from scripts.meta_harness import RUNS_DIR
+
+        monkeypatch.setattr("sys.argv", [
+            "meta_harness.py", "record-metrics",
+            "run-0021", "0.83", "7300", "9800", "low", "metadata test",
+            "--sample-size", "8",
+            "--eval-method", "deterministic+llm",
+            "--deterministic-score", "0.92",
+            "--llm-judge-score", "0.75",
+            "--evaluation-verdict", "accepted_with_warnings",
+            "--report-verdict", "ITERATE",
+            "--benchmark-version", "2026-04-09",
+            "--baseline-run-id", "run-0007",
+            "--seed", "42",
+        ])
+        main()
+
+        rows = read_frontier()
+        row = [r for r in rows if r["run_id"] == "run-0021"][0]
+        assert row["sample_size"] == "8"
+        assert row["eval_method"] == "deterministic+llm"
+        assert row["deterministic_score"] == "0.92"
+        assert row["llm_judge_score"] == "0.75"
+        assert row["evaluation_verdict"] == "accepted_with_warnings"
+        assert row["report_verdict"] == "ITERATE"
+        assert row["benchmark_version"] == "2026-04-09"
+        assert row["baseline_run_id"] == "run-0007"
+        assert row["seed"] == "42"
+        metrics = json.loads((RUNS_DIR / "run-0021" / "metrics.json").read_text(encoding="utf-8"))
+        assert metrics["metrics_schema_version"] == "2"
+        assert metrics["evaluation_verdict"] == "accepted_with_warnings"
+        assert metrics["report_verdict"] == "ITERATE"
 
 
 class TestCheckpoint:

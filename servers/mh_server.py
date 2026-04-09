@@ -2,6 +2,7 @@
 """Meta-Harness MCP Server — exposes harness tools and resources over stdio."""
 from __future__ import annotations
 
+import json
 import pathlib
 import sys
 
@@ -9,10 +10,13 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from scripts.config import (
+    RUN_STATUS_COMPLETE,
     PLUGIN_DATA,
     PLUGIN_ROOT,
     RUNS_DIR,
     as_float,
+    build_metrics_row,
+    MEASURED_RUN_STATUSES,
     read_frontier,
     upsert_frontier_row,
 )
@@ -53,7 +57,7 @@ def _read_frontier() -> list[dict[str, str]]:
 
 def _frontier_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     """Return Pareto non-dominated rows."""
-    completed = [r for r in rows if r.get("status") == "complete"]
+    completed = [r for r in rows if r.get("status") in MEASURED_RUN_STATUSES]
     frontier: list[dict[str, str]] = []
     for r in completed:
         dominated = False
@@ -116,21 +120,45 @@ async def frontier_read(format: str = "markdown", limit: int = 10) -> str:
 async def frontier_record(
     run_id: str, primary_score: str, avg_latency_ms: str,
     avg_input_tokens: str, risk: str = "low", note: str = "",
-    status: str = "complete", consistency: str = "",
+    status: str = RUN_STATUS_COMPLETE, consistency: str = "",
     instruction_adherence: str = "", tool_efficiency: str = "",
     error_count: str = "",
+    sample_size: str = "", eval_method: str = "",
+    deterministic_score: str = "", llm_judge_score: str = "",
+    evaluation_verdict: str = "", report_verdict: str = "",
+    benchmark_version: str = "", baseline_run_id: str = "",
+    seed: str = "",
 ) -> str:
-    """Record metrics for a harness candidate run into frontier.tsv."""
-    from scripts.config import iso_timestamp
-
-    upsert_frontier_row({
-        "run_id": run_id, "status": status,
-        "primary_score": primary_score, "avg_latency_ms": avg_latency_ms,
-        "avg_input_tokens": avg_input_tokens, "risk": risk,
-        "consistency": consistency, "instruction_adherence": instruction_adherence,
-        "tool_efficiency": tool_efficiency, "error_count": error_count,
-        "note": note, "timestamp": iso_timestamp(),
-    })
+    """Record metrics for a harness candidate run into frontier.tsv and metrics.json."""
+    row = build_metrics_row(
+        run_id,
+        status,
+        primary_score=primary_score,
+        avg_latency_ms=avg_latency_ms,
+        avg_input_tokens=avg_input_tokens,
+        risk=risk,
+        consistency=consistency,
+        instruction_adherence=instruction_adherence,
+        tool_efficiency=tool_efficiency,
+        error_count=error_count,
+        sample_size=sample_size,
+        eval_method=eval_method,
+        deterministic_score=deterministic_score,
+        llm_judge_score=llm_judge_score,
+        evaluation_verdict=evaluation_verdict,
+        report_verdict=report_verdict,
+        benchmark_version=benchmark_version,
+        baseline_run_id=baseline_run_id,
+        seed=seed,
+        note=note,
+    )
+    upsert_frontier_row(row)
+    run_dir = RUNS_DIR / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "metrics.json").write_text(
+        json.dumps(row, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return f"Recorded metrics for {run_id}"
 
 
@@ -297,7 +325,7 @@ async def traces_for_run(run_id: str) -> str:
 async def regressions_resource() -> str:
     """Regression analysis — runs where score dropped below previous best."""
     rows = _read_frontier()
-    completed = [r for r in rows if r.get("status") == "complete"]
+    completed = [r for r in rows if r.get("status") in MEASURED_RUN_STATUSES]
     completed.sort(key=lambda r: r.get("timestamp", ""))
     regression_runs = []
     best_so_far = -1e18

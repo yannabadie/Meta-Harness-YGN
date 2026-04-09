@@ -393,7 +393,16 @@ bin/mh-record-metrics <run_id> <score> <latency_ms> <tokens> <risk> <note> \
   [--consistency X] \
   [--instruction-adherence X] \
   [--tool-efficiency X] \
-  [--error-count X]
+  [--error-count X] \
+  [--sample-size N] \
+  [--eval-method METHOD] \
+  [--deterministic-score X] \
+  [--llm-judge-score X] \
+  [--evaluation-verdict VERDICT] \
+  [--report-verdict VERDICT] \
+  [--benchmark-version VERSION] \
+  [--baseline-run-id RUN_ID] \
+  [--seed N]
 ```
 
 **Arguments:**
@@ -406,13 +415,22 @@ bin/mh-record-metrics <run_id> <score> <latency_ms> <tokens> <risk> <note> \
 | `tokens` | Yes | Average input tokens |
 | `risk` | Yes | `low`, `medium`, or `high` |
 | `note` | Yes | Short description of the hypothesis |
-| `--status` | No | Default `complete`. Also accepts `promoted`. |
+| `--status` | No | Default `complete`. Also accepts `reserved` and `promoted`. |
 | `--consistency` | No | Optional consistency sub-score |
 | `--instruction-adherence` | No | Optional instruction adherence sub-score |
 | `--tool-efficiency` | No | Optional tool efficiency sub-score |
 | `--error-count` | No | Optional error count |
+| `--sample-size` | No | Optional sample size used for confidence reporting |
+| `--eval-method` | No | Optional evaluation method label, e.g. `deterministic+llm` |
+| `--deterministic-score` | No | Optional deterministic sub-score persisted alongside the primary score |
+| `--llm-judge-score` | No | Optional LLM-judge sub-score |
+| `--evaluation-verdict` | No | Optional evaluator verdict: `accepted`, `accepted_with_warnings`, `rejected`, or `partial` |
+| `--report-verdict` | No | Optional report verdict: `PROMOTE`, `REJECT`, or `ITERATE` |
+| `--benchmark-version` | No | Optional benchmark or eval bundle version |
+| `--baseline-run-id` | No | Optional baseline run used for comparison |
+| `--seed` | No | Optional seed recorded with the evaluation metadata |
 
-**What it does:** Writes or updates a row in `frontier.tsv` and writes `metrics.json` to the run directory. Prints the run ID on success.
+**What it does:** Writes or updates a row in `frontier.tsv` and writes `metrics.json` to the run directory. The shared schema now persists semantic metadata including schema version, sample size, eval method, deterministic/LLM split, evaluator verdict, report verdict, benchmark version, baseline run, and seed. Prints the run ID on success.
 
 **Example:**
 
@@ -686,14 +704,23 @@ Reads `frontier.tsv`, computes Pareto non-dominated set, and prints the result. 
 ```bash
 python scripts/meta_harness.py record-metrics \
   <run_id> <primary_score> <avg_latency_ms> <avg_input_tokens> <risk> <note> \
-  [--status complete|promoted] \
+  [--status reserved|complete|promoted] \
   [--consistency X] \
   [--instruction-adherence X] \
   [--tool-efficiency X] \
-  [--error-count X]
+  [--error-count X] \
+  [--sample-size N] \
+  [--eval-method METHOD] \
+  [--deterministic-score X] \
+  [--llm-judge-score X] \
+  [--evaluation-verdict VERDICT] \
+  [--report-verdict VERDICT] \
+  [--benchmark-version VERSION] \
+  [--baseline-run-id RUN_ID] \
+  [--seed N]
 ```
 
-Writes or updates a row in `frontier.tsv` and creates `metrics.json` in the run directory. Prints the run ID.
+Writes or updates a row in `frontier.tsv` and creates `metrics.json` in the run directory. Persists shared semantic metadata such as schema version, evaluation method, score split, verdict mapping, benchmark version, baseline run, and seed. Prints the run ID.
 
 **Example:**
 

@@ -13,13 +13,22 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from scripts.config import (
+    EVALUATION_VERDICTS,
     FRONTIER,
+    MEASURED_RUN_STATUSES,
+    REPORT_VERDICTS,
     PLUGIN_DATA,
+    RUN_STATUS_COMPLETE,
+    RUN_STATUS_PROMOTED,
+    RUN_STATUS_RESERVED,
+    RUN_STATUSES,
     RUNS_DIR,
     TSV_HEADER,
     as_float,
+    build_metrics_row,
     ensure_dirs,
     iso_timestamp,
+    METRICS_SCHEMA_VERSION,
     next_run_id,
     read_frontier,
     session_path,
@@ -105,20 +114,7 @@ def detect_incomplete_runs() -> dict | None:
 
 
 def _reserved_row(run_id: str, timestamp: str | None = None) -> dict[str, str]:
-    return {
-        "run_id": run_id,
-        "status": "reserved",
-        "primary_score": "",
-        "avg_latency_ms": "",
-        "avg_input_tokens": "",
-        "risk": "",
-        "consistency": "",
-        "instruction_adherence": "",
-        "tool_efficiency": "",
-        "error_count": "",
-        "note": "",
-        "timestamp": timestamp or iso_timestamp(),
-    }
+    return build_metrics_row(run_id, RUN_STATUS_RESERVED, timestamp=timestamp)
 
 
 def _reserve_run_dir(run_id: str, initialize_reserved: bool) -> pathlib.Path:
@@ -170,7 +166,7 @@ def dominates(a: dict[str, str], b: dict[str, str]) -> bool:
 
 
 def frontier_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
-    completed = [r for r in rows if r.get("status") == "complete"]
+    completed = [r for r in rows if r.get("status") in MEASURED_RUN_STATUSES]
     frontier: list[dict[str, str]] = []
     for r in completed:
         dominated = False
@@ -214,21 +210,28 @@ def cmd_frontier(args: argparse.Namespace) -> int:
 
 def cmd_record_metrics(args: argparse.Namespace) -> int:
     run_id = args.run_id
-    timestamp = iso_timestamp()
-    row = {
-        "run_id": run_id,
-        "status": args.status,
-        "primary_score": args.primary_score,
-        "avg_latency_ms": args.avg_latency_ms,
-        "avg_input_tokens": args.avg_input_tokens,
-        "risk": args.risk,
-        "consistency": args.consistency,
-        "instruction_adherence": args.instruction_adherence,
-        "tool_efficiency": args.tool_efficiency,
-        "error_count": args.error_count,
-        "note": args.note,
-        "timestamp": timestamp,
-    }
+    row = build_metrics_row(
+        run_id,
+        args.status,
+        primary_score=args.primary_score,
+        avg_latency_ms=args.avg_latency_ms,
+        avg_input_tokens=args.avg_input_tokens,
+        risk=args.risk,
+        consistency=args.consistency,
+        instruction_adherence=args.instruction_adherence,
+        tool_efficiency=args.tool_efficiency,
+        error_count=args.error_count,
+        sample_size=args.sample_size,
+        eval_method=args.eval_method,
+        deterministic_score=args.deterministic_score,
+        llm_judge_score=args.llm_judge_score,
+        evaluation_verdict=args.evaluation_verdict,
+        report_verdict=args.report_verdict,
+        benchmark_version=args.benchmark_version,
+        baseline_run_id=args.baseline_run_id,
+        seed=args.seed,
+        note=args.note,
+    )
     upsert_frontier_row(row)
     run_dir = RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -242,7 +245,7 @@ def cmd_record_metrics(args: argparse.Namespace) -> int:
 
 def cmd_regressions(args: argparse.Namespace) -> int:
     rows = read_frontier()
-    completed = [r for r in rows if r.get("status") == "complete"]
+    completed = [r for r in rows if r.get("status") in MEASURED_RUN_STATUSES]
     completed.sort(key=lambda r: r.get("timestamp", ""), reverse=True)
     regressions = []
     best_so_far = -10**18
@@ -494,8 +497,13 @@ def cmd_promote(args: argparse.Namespace) -> int:
         return 1
 
     # Update status in frontier
-    update_frontier_row(run_id, status="promoted")
-    metrics["status"] = "promoted"
+    update_frontier_row(
+        run_id,
+        status=RUN_STATUS_PROMOTED,
+        metrics_schema_version=metrics.get("metrics_schema_version", METRICS_SCHEMA_VERSION),
+    )
+    metrics["status"] = RUN_STATUS_PROMOTED
+    metrics.setdefault("metrics_schema_version", METRICS_SCHEMA_VERSION)
     metrics_file.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
 
     print(f"Promoted {run_id}")
@@ -556,7 +564,7 @@ def cmd_compact_summary(_: argparse.Namespace) -> int:
                 f"note={r.get('note','')}"
             )
 
-    completed = [r for r in rows if r.get("status") == "complete"]
+    completed = [r for r in rows if r.get("status") in MEASURED_RUN_STATUSES]
     completed.sort(key=lambda r: r.get("timestamp", ""))
     best_so_far = -10**18
     regression_count = 0
@@ -606,11 +614,20 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("avg_input_tokens")
     s.add_argument("risk")
     s.add_argument("note")
-    s.add_argument("--status", default="complete")
+    s.add_argument("--status", default=RUN_STATUS_COMPLETE, choices=RUN_STATUSES)
     s.add_argument("--consistency", default="")
     s.add_argument("--instruction-adherence", default="")
     s.add_argument("--tool-efficiency", default="")
     s.add_argument("--error-count", default="")
+    s.add_argument("--sample-size", default="")
+    s.add_argument("--eval-method", default="")
+    s.add_argument("--deterministic-score", default="")
+    s.add_argument("--llm-judge-score", default="")
+    s.add_argument("--evaluation-verdict", default="", choices=("",) + EVALUATION_VERDICTS)
+    s.add_argument("--report-verdict", default="", choices=("",) + REPORT_VERDICTS)
+    s.add_argument("--benchmark-version", default="")
+    s.add_argument("--baseline-run-id", default="")
+    s.add_argument("--seed", default="")
     s.set_defaults(func=cmd_record_metrics)
 
     s = sub.add_parser("regressions")

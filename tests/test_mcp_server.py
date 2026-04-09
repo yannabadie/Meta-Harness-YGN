@@ -1,6 +1,8 @@
 """Tests for mh_server.py — Phase 0: verify tools and resources exist."""
+import asyncio
 import builtins
 import importlib
+import json
 import os
 import tempfile
 import csv
@@ -17,16 +19,20 @@ os.environ.setdefault("MH_PLUGIN_ROOT", str(pathlib.Path(__file__).resolve().par
 data_dir = pathlib.Path(_tmp)
 data_dir.mkdir(parents=True, exist_ok=True)
 frontier_path = data_dir / "frontier.tsv"
+from scripts.config import TSV_HEADER
 with frontier_path.open("w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f, delimiter="\t")
-    writer.writerow([
-        "run_id", "status", "primary_score", "avg_latency_ms",
-        "avg_input_tokens", "risk", "note", "timestamp",
-    ])
-    writer.writerow([
-        "run-0001", "complete", "0.764", "8120",
-        "11382", "low", "env bootstrap", "2026-04-07T00:00:00Z",
-    ])
+    writer.writerow(TSV_HEADER)
+    writer.writerow({
+        "run_id": "run-0001",
+        "status": "complete",
+        "primary_score": "0.764",
+        "avg_latency_ms": "8120",
+        "avg_input_tokens": "11382",
+        "risk": "low",
+        "note": "env bootstrap",
+        "timestamp": "2026-04-07T00:00:00Z",
+    }.get(k, "") for k in TSV_HEADER)
 
 
 class TestMCPServerStructure:
@@ -118,6 +124,38 @@ class TestNewTools:
         except ImportError as e:
             if "mcp" in str(e): pytest.skip("mcp not installed")
             raise
+
+    def test_frontier_record_persists_extended_metrics(self):
+        from servers.mh_server import RUNS_DIR, frontier_record
+
+        asyncio.run(frontier_record(
+            run_id="run-0090",
+            primary_score="0.88",
+            avg_latency_ms="7000",
+            avg_input_tokens="9800",
+            risk="low",
+            note="server metadata",
+            status="complete",
+            consistency="0.71",
+            instruction_adherence="4.1",
+            tool_efficiency="11",
+            error_count="0",
+            sample_size="6",
+            eval_method="deterministic+llm",
+            deterministic_score="0.91",
+            llm_judge_score="0.80",
+            evaluation_verdict="accepted",
+            report_verdict="PROMOTE",
+            benchmark_version="2026-04-09",
+            baseline_run_id="run-0001",
+            seed="7",
+        ))
+
+        metrics_path = RUNS_DIR / "run-0090" / "metrics.json"
+        metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+        assert metrics["metrics_schema_version"] == "2"
+        assert metrics["eval_method"] == "deterministic+llm"
+        assert metrics["report_verdict"] == "PROMOTE"
 
 
 class TestNewResources:
